@@ -2,29 +2,30 @@ import os
 import ot
 import json
 import scipy
+import scipy.sparse
+
+import pulp as pl
 import numpy as np
 import scanpy as sc
-import pandas as pd
-import anndata as ad
-from anndata import AnnData
-import pulp as pl
-from typing import Literal, Union, List, Callable, Tuple, TypedDict, Dict
-from itertools import chain, combinations
+
 from tqdm import tqdm
+from typing import Union, List, Callable, Tuple, Dict
+from anndata import AnnData
 from matchings import Matching
 
-import scipy.sparse
 
 # config and logging setup
 import config
 import logging
+import warnings
 
 logging = logging.getLogger(__name__)
+# ignore pandas FutureWarnings originating from Scanpy's HVG method
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 # constants
 MAX_CLUSTER_SIZE = 6000
 MAX_HVG_SIZE = 30000
-
 
 # of the form [ query_id: {ref_id: [ mapping costs ]} ]
 mcost_db = List[Dict[str, Dict[str, List[List[float]]]]]
@@ -48,7 +49,7 @@ class RefCM:
         verbose_solver: bool = False,
         numItermax: int = 2e5,
         n_top_genes: int = 1200,
-        target_sum: int | None = 1e4,
+        target_sum: int | None = None,
         subsample_large_clusters: bool = False,
         load_mcosts: bool = True,
         save_mcosts: bool = False,
@@ -76,7 +77,7 @@ class RefCM:
             max number of iterations for an emd optimization
         n_top_genes: int = 1200
             Number of highly variable genes (in self) to select
-        target_sum: int | None = 1e4
+        target_sum: int | None = None
             Target row sum after normalization.
         subsample_large_clusters: bool = False
             Whether to subsample very large clusters to combat memory usage.

@@ -8,5 +8,6 @@ data/*
 *.mtx
 *.gtf
 *.pdf
+*.log
 GSE136049/*
 GES115746/*
