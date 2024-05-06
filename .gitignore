@@ -1,0 +1,12 @@
+benchmarks/.Rhistory
+.ipynb_checkpoints/
+.DS_Store
+*__pycache__/
+data/*
+*.h5ad
+*.csv
+*.mtx
+*.gtf
+*.pdf
+GSE136049/*
+GES115746/*
