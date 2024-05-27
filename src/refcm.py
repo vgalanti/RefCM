@@ -9,7 +9,7 @@ import numpy as np
 import scanpy as sc
 
 from tqdm import tqdm
-from typing import Union, List, Callable, Tuple, Dict
+from typing import Union, List, Callable, Tuple, Dict, TypedDict, TypeAlias
 from anndata import AnnData
 from matchings import Matching
 
@@ -27,15 +27,29 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 MAX_CLUSTER_SIZE = 6000
 MAX_HVG_SIZE = 30000
 
-# of the form [ query_id: {ref_id: [ mapping costs ]} ]
-mcost_db = List[Dict[str, Dict[str, List[List[float]]]]]
+
+# Caching of compute-expensive WS costs
+class CachedCost(TypedDict):
+    # query and reference names
+    q_id: str
+    ref_id: str
+
+    # parameters used in computation of WS cost
+    target_sum: int | None
+    n_top_genes: int
+    num_iter_max: int
+    max_hvg_size: int | None
+    max_cluster_size: int | None
+
+    # the computed ws costs
+    costs: List[List[float]]
 
 
 # TODO check if this requires log-normalized data
 def dflt_clustering_func(adata: AnnData) -> AnnData:
     sc.tl.pca(adata)
     sc.pp.neighbors(adata)
-    sc.tl.leiden(adata)  # , key_added="refcm_clusters")
+    sc.tl.leiden(adata)  # , key_added="refcm_clusters"
     return adata
 
 
@@ -47,13 +61,14 @@ class RefCM:
         n_target_clusters: int | None = None,
         discovery_threshold: float | None = 0.2,
         verbose_solver: bool = False,
-        numItermax: int = 2e5,
+        num_iter_max: int = 2e5,
         n_top_genes: int = 1200,
         target_sum: int | None = None,
-        subsample_large_clusters: bool = False,
-        load_mcosts: bool = True,
-        save_mcosts: bool = False,
-        db_fpath: str = config.DB_FPATH,
+        max_cluster_size: int | None = MAX_CLUSTER_SIZE,
+        max_hvg_size: int | None = MAX_HVG_SIZE,
+        cache_load: bool = True,
+        cache_save: bool = True,
+        cache_fpath: str = config.WS_CACHE,
     ) -> None:
         """
         Initializes RefCM instance
@@ -73,19 +88,21 @@ class RefCM:
             not get mapped and is instead considered a potentially new cell type
         verbose_solver: bool = False
             whether PuLP consol output should be silenced
-        numItermax: int = 2e5
-            max number of iterations for an emd optimization
+        num_iter_max: int = 2e5
+            max number of iterations for the emd optimization
         n_top_genes: int = 1200
             Number of highly variable genes (in self) to select
         target_sum: int | None = None
             Target row sum after normalization.
-        subsample_large_clusters: bool = False
-            Whether to subsample very large clusters to combat memory usage.
-        load_mcosts: bool = True
-            Whether to load existing mapping costs (if available).
-        save_mcosts: bool = True,
-            Whether to save new mapping costs.
-        db_fpath: str = config.DB_FPATH
+        max_cluster_size: int | None = MAX_CLUSTER_SIZE
+            The maximum cluster size we would subsample larger clusters to.
+        max_hvg_size: int | None = MAX_HVG_SIZE
+            The maximum number of rows we pass to scanpy's hvg computation.
+        cache_load: bool = True
+            Whether to load existing mapping costs (if available) from cache.
+        cache_save: bool = True,
+            Whether to save new mapping costs to cache.
+        cache_fpath: str = config.WS_CACHE
             Path to stored mapping costs.
 
         """
@@ -96,14 +113,15 @@ class RefCM:
         self._n_target_clusters: int | None = n_target_clusters
         self._discovery_threshold: float | None = discovery_threshold
         self._verbose_solver: bool = verbose_solver
-        self._numItermax: int = numItermax
+        self._num_iter_max: int = num_iter_max
         self._n_top_genes: int = n_top_genes
         self._target_sum: int | None = target_sum
-        self._subsample_large_clusters: bool = subsample_large_clusters
-        self._db_fpath: str = db_fpath
-        self._load_mcosts: bool = load_mcosts
-        self._save_mcosts: bool = save_mcosts
-        self._db: mcost_db = self._load_db()
+        self._max_cluster_size: int | None = max_cluster_size
+        self._max_hvg_size: int | None = max_hvg_size
+        self._cache_fpath: str = cache_fpath
+        self._cache_load: bool = cache_load
+        self._cache_save: bool = cache_save
+        self._cache: List[CachedCost] = self._load_cache()
 
     def annotate(
         self,
@@ -340,18 +358,17 @@ class RefCM:
         # check whether costs have already been saved
         q_id, ref_id = q.uns["_id"], ref.uns["_id"]
 
-        if self._load_mcosts:
-            q_mcosts = self._db.get(q_id)
-            c = q_mcosts.get(ref_id) if q_mcosts is not None else None
+        if self._cache_load:
+            c = self._cache_get(q_id, ref_id)
             if c is not None:
-                logging.debug(f"Using costs for {q_id}->{ref_id} found in database.")
+                logging.debug(f"Using costs for {q_id}->{ref_id} found in cache.")
                 return np.array(c)
 
         # otherwise, compute them
         c = self._ws(q, ref)
 
-        if self._save_mcosts:
-            self._update_db(q_id, ref_id, c.tolist())
+        if self._cache_save:
+            self._update_cache(q_id, ref_id, c.tolist())
 
         return c
 
@@ -405,7 +422,7 @@ class RefCM:
                     a, b = unif(len(x_qc)), unif(len(x_rc))
                     M = -x_qc @ x_rc.T
 
-                    ws[qc][rc] = ot.emd2(a, b, M, numItermax=self._numItermax)
+                    ws[qc][rc] = ot.emd2(a, b, M, numItermax=self._num_iter_max)
                     pbar.update(1)
 
         # convert query and reference back to raw counts
@@ -433,8 +450,8 @@ class RefCM:
             The normalized/preprocessed cluster in non-sparse format.
         """
 
-        if self._subsample_large_clusters and x.shape[0] > MAX_CLUSTER_SIZE:
-            sbs = np.random.choice(x.shape[0], MAX_CLUSTER_SIZE, replace=False)
+        if self._max_cluster_size is not None and x.shape[0] > self._max_cluster_size:
+            sbs = np.random.choice(x.shape[0], self._max_cluster_size, replace=False)
             x = x[sbs]
 
         if scipy.sparse.issparse(x):
@@ -487,9 +504,12 @@ class RefCM:
         List[str]:
             List of genes with the highest variability.
         """
-        n = ds.X.shape[0]
-        sbset = np.random.choice(n, min(n, MAX_HVG_SIZE), replace=False)
-        tmp = ds[sbset].copy()
+        if self._max_hvg_size is None:
+            tmp = ds.copy()
+        else:
+            n = ds.X.shape[0]
+            sbset = np.random.choice(n, min(n, MAX_HVG_SIZE), replace=False)
+            tmp = ds[sbset].copy()
 
         sc.pp.highly_variable_genes(tmp, n_top_genes=self._n_top_genes)
 
@@ -558,19 +578,53 @@ class RefCM:
 
     """############ utils ############"""
 
-    def _load_db(self) -> mcost_db:
-        """Loads saved mapping costs."""
-        if not os.path.isfile(self._db_fpath):
-            logging.debug(f"No existing matching db cost file {self._db_fpath} found.")
-            return {}
+    def _load_cache(self) -> List[CachedCost]:
+        """Loads cached mapping costs."""
+        if not os.path.isfile(self._cache_fpath):
+            logging.debug(f"No existing cost-cache found ({self._cache_fpath}).")
+            return []
         else:
-            logging.debug(f"Loading existing mapping costs from {self._db_fpath}.")
-            with open(self._db_fpath, "r") as f:
+            logging.debug(f"Loading cached mapping costs from {self._cache_fpath}.")
+            with open(self._cache_fpath, "r") as f:
                 return json.load(f)
 
-    def _update_db(self, q_id: str, ref_id: str, mcosts: List[List[float]]) -> None:
+    def _cache_get(self, q_id: str, ref_id: str) -> List[List[float]] | None:
         """
-        Updates the mapping costs database.
+        Retrieves mapping costs from cache, if available.
+
+        Parameters
+        ----------
+        q_id: str
+            Query id (name).
+        ref_id: str
+            Reference id (name).
+
+        Returns
+        -------
+        List[List[float]] | None:
+            The corresponding mapping cost, if it exists.
+        """
+
+        pred = lambda c: (
+            c["q_id"] == q_id
+            and c["ref_id"] == ref_id
+            and c["num_iter_max"] == self._num_iter_max
+            and c["target_sum"] == self._target_sum
+            and c["n_top_genes"] == self._n_top_genes
+            and c["max_hvg_size"] == self._max_hvg_size
+            and c["max_cluster_size"] == self._max_cluster_size
+        )
+        result = list(filter(pred, self._cache))
+
+        if len(result) > 1:
+            logging.error(f"Corrupted Cache: conflicting entries for {q_id}->{ref_id}")
+            raise Exception(f"Corrupted Cache {self._cache_fpath}.")
+
+        return result[0]["costs"] if len(result) == 1 else None
+
+    def _update_cache(self, q_id: str, ref_id: str, mcosts: List[List[float]]) -> None:
+        """
+        Updates the mapping costs cache file.
 
         Parameters
         ----------
@@ -579,42 +633,25 @@ class RefCM:
         ref_id: str
             Reference id (name) for saving.
         mcosts: List[List[float]]
-            Pair mapping costs to add to the db.
+            Pair mapping costs to add to the cache.
         """
-        logging.debug(f"Adding {q_id}->{ref_id} mapping costs to {self._db_fpath}.")
 
-        if self._db.get(q_id) is None:
-            self._db[q_id] = {ref_id: mcosts}
-        else:
-            self._db[q_id][ref_id] = mcosts
+        if self._cache_get(q_id, ref_id) is not None:
+            return
 
-        with open(self._db_fpath, "w") as f:
-            json.dump(self._db, f, sort_keys=True, indent=4, ensure_ascii=False)
+        logging.debug(f"Saving {q_id}->{ref_id} mapping costs to {self._cache_fpath}.")
+        self._cache.append(
+            {
+                "q_id": q_id,
+                "ref_id": ref_id,
+                "target_sum": self._target_sum,
+                "n_top_genes": self._n_top_genes,
+                "num_iter_max": self._num_iter_max,
+                "max_hvg_size": self._max_hvg_size,
+                "max_cluster_size": self._max_cluster_size,
+                "costs": mcosts,
+            }
+        )
 
-    def existing_mcosts(
-        self, with_q: Union[str, None] = None, with_ref: Union[str, None] = None
-    ) -> List[str]:
-        """
-        Returns the names of saved/existing matching query -> reference mapping costs.
-
-        Parameters
-        ----------
-        with_q: Union[str, None] = None
-            Filter to only include those saved for a specific query id.
-        with_ref: sUnion[str, None] = None
-            Filter to only include those saved for a specific reference id.
-
-        Returns
-        -------
-        List[str]:
-            List of query -> reference pairs matching search criteria.
-        """
-        pairs = [
-            [q_id, ref_id]
-            for q_id in self._db.keys()
-            for ref_id in self._db[q_id].keys()
-        ]
-        pairs = list(filter(lambda p: p[0] == with_q or with_q is None, pairs))
-        pairs = list(filter(lambda p: p[1] == with_ref or with_ref is None, pairs))
-        pairs = [" -> ".join(p) for p in pairs]
-        return pairs
+        with open(self._cache_fpath, "w") as f:
+            json.dump(self._cache, f, indent=4, ensure_ascii=False)
