@@ -2,7 +2,7 @@ import gdown
 import logging
 
 LOG_FILE = "log.log"
-DB_FPATH = "db.json"
+WS_CACHE = "ws_cache.json"
 DRIVE_ID = "1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ"
 MATCHING_FILE = "matchings.csv"
 MATCHING_COSTS_FILE = "matching_costs.csv"
