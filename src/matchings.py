@@ -83,10 +83,14 @@ class Matching:
             lbl = gt[self.q.obs["refcm_clusters"] == i].mode().iloc[0]
             q_ktl[i] = lbl
 
-        q_labels = [*q_ktl.values()]
-        label_intersection = [*(set(self.ref_labels).intersection(q_labels))]
+        q_labels = np.array([*q_ktl.values()])
+        label_intersection = sorted([*(set(self.ref_labels).intersection(q_labels))])
 
-        self.map_status: np.ndarray = np.full_like(self.m, NOTMAPPED)
+        self.q_ktl = q_ktl
+        self.label_intersection = label_intersection
+        self.n_common_labels = len(label_intersection)
+
+        self.ms: np.ndarray = np.full_like(self.m, NOTMAPPED)  # ms: map status
         for i in range(self.q_n):
             ql = q_ktl[i]
 
@@ -94,30 +98,81 @@ class Matching:
                 rl = self.ref_ktl[j]
 
                 if self.m[i, j] == 1:
-                    logging.debug(f"{ql:<20} mapped to {rl:<20}")
-                    self.map_status[i, j] = CORRECT if ql == rl else INCORRECT
+                    self.ms[i, j] = CORRECT if ql == rl else INCORRECT
+                    s = "\x1b[32m[+]\x1B[0m" if ql == rl else "\x1B[31m[-]\x1B[0m"
+                    logging.debug(f"{s} {ql:<20} mapped to {rl:<20}")
 
-        correct_mask = self.map_status == CORRECT
-        incorrect_mask = self.map_status == INCORRECT
-        notmapped_mask = self.map_status == NOTMAPPED
+        # calculations on the number of correct/incorrect/missing links
+        correct_mask = self.ms == CORRECT
+        incorrect_mask = self.ms == INCORRECT
+        notmapped_mask = self.ms == NOTMAPPED
 
-        self.n_correct: int = correct_mask.sum()
-        self.n_incorrect: int = incorrect_mask.sum()
-        self.n_notmapped: int = notmapped_mask.sum()
+        self.n_correct_links: int = correct_mask.sum()
+        self.n_incorrect_links: int = incorrect_mask.sum()
+        self.n_notmapped_links: int = notmapped_mask.sum()
 
-        # TODO this will need to be modified if we allow multiple "true" clusters
-        # self.pct_correct: float = self.q_cts_per_label[correct_mask].sum()
-        # self.pct_correct /= self.q_cts_per_label.sum()
+        # useful masks for narrowing down how common/noncommon types are linked
+        qc_w_correct_mapping_mask = correct_mask.any(axis=1)
+        qc_w_incorrect_mapping_mask = incorrect_mask.any(axis=1)
+        qc_wo_mapping_mask = notmapped_mask.all(axis=1)
 
-        # this is definitely not informative with cluster splitting
-        # self.pct_incorrect: float = self.q_cts_per_label[incorrect_mask].sum()
-        # self.pct_incorrect /= self.q_cts_per_label.sum()
-        # self.pct_notmapped: float = 1 - self.pct_correct - self.pct_incorrect
+        cmn_lbl_mask = np.array(
+            [*map(lambda x: x in label_intersection, q_ktl.values())]
+        )
 
-        logging.info(f"mapped {self.q_name:<20} to {self.ref_name:<20}")
-        logging.info(f"({len(label_intersection):<2} common cell types)")
-        logging.info(f"{self.n_correct:<2}/{self.q_n:<2} correct mappings")
-        logging.info(f"{self.n_incorrect:<2}/{self.q_n:<2} incorrect mappings")
+        # query clusters with at least one correct link
+        self.common_w_correct_links = q_labels[
+            cmn_lbl_mask & qc_w_correct_mapping_mask
+        ].tolist()
+        self.n_common_w_correct_links = len(self.common_w_correct_links)
+
+        # query clusters with only correct links
+        self.common_w_only_correct_links = q_labels[
+            cmn_lbl_mask & qc_w_correct_mapping_mask & ~qc_w_incorrect_mapping_mask
+        ].tolist()
+        self.n_common_w_only_correct_links = len(self.common_w_only_correct_links)
+
+        # query clusters with incorrect links
+        self.common_w_incorrect_links = q_labels[
+            cmn_lbl_mask & qc_w_incorrect_mapping_mask
+        ].tolist()
+        self.n_common_w_incorrect_links = len(self.common_w_incorrect_links)
+
+        # query clusters with only incorrect links
+        self.common_w_only_incorrect_links = q_labels[
+            cmn_lbl_mask & ~qc_w_correct_mapping_mask & qc_w_incorrect_mapping_mask
+        ].tolist()
+        self.n_common_w_only_incorrect_links = len(self.common_w_only_incorrect_links)
+
+        # query clusters with a correct link, but also incorrect link(s) from splitting.
+        self.common_w_correct_and_incorrect_links = q_labels[
+            cmn_lbl_mask & qc_w_correct_mapping_mask & qc_w_incorrect_mapping_mask
+        ].tolist()
+        self.n_common_w_correct_and_incorrect_links = len(
+            self.common_w_correct_and_incorrect_links
+        )
+
+        # query clusters that are incorrectly marked as discovered (i.e. not mapped to anything)
+        self.common_notmapped = q_labels[cmn_lbl_mask & qc_wo_mapping_mask].tolist()
+        self.n_common_notmapped = len(self.common_notmapped)
+
+        # noncommon query clusters that are correctly marked as discovered.
+        self.noncommon_discovered = q_labels[
+            ~cmn_lbl_mask & qc_wo_mapping_mask
+        ].tolist()
+        self.n_noncommon_discovered = len(self.noncommon_discovered)
+
+        # noncommon query clusters that are incorrectly assigned to anything
+        self.noncommon_mapped = q_labels[(~cmn_lbl_mask & ~qc_wo_mapping_mask)].tolist()
+        self.n_noncommon_mapped = len(self.noncommon_mapped)
+
+        # logging
+        logging.info(f"{self.q_name:<20} to {self.ref_name:<20}")
+        logging.info(f"{self.n_common_labels:<2}    common cell types")
+        logging.info(
+            f"{self.n_correct_links:<2}/{self.n_common_labels:<2} correct   links"
+        )
+        logging.info(f"{self.n_incorrect_links:<2}    incorrect links")
 
     def display_matching_costs(
         self, ground_truth_obs_key: str = None, display_mapped_pairs: bool = True
@@ -194,98 +249,10 @@ class Matching:
 
     def display_matching_graph(self) -> None:
         """Display the bipartite matching graph"""
+        # TODO utilize pyviz
 
         logging.error("Deprecated")
         return
-        # TODO just use pyviz instead since this will be much nicer also if we want to display the effect of using multiple references (and saves a bunch of headaches)
-
-        q_x, r_x = 0, max(self.q_n, self.ref_n) / 2
-        y_scaling = 1
-
-        q_colors = [
-            "#00d2ff" if self.q_ktl[i] in self.ref_labels else "#B3CCF5"
-            for i in range(self.q_n)
-        ]
-
-        r_colors = [
-            "#00d2ff" if self.ref_ktl[i] in self.q_labels else "#B3CCF5"
-            for i in range(self.ref_n)
-        ]
-
-        q_trace = go.Scatter(
-            x=[q_x] * self.q_n,
-            y=[(self.q_n / 2 - i) * y_scaling for i in range(self.q_n)],
-            text=self.q_labels,
-            mode="markers+text",
-            hoverinfo="text",
-            textposition="top right",
-            marker=dict(size=14, color=q_colors),
-        )
-
-        r_trace = go.Scatter(
-            x=[r_x] * self.ref_n,
-            y=[(self.ref_n / 2 - i) * y_scaling for i in range(self.ref_n)],
-            text=self.ref_labels,
-            mode="markers+text",
-            hoverinfo="text",
-            textposition="top left",
-            marker=dict(size=14, color=r_colors),
-        )
-
-        e = {"correct": {"x": [], "y": []}, "incorrect": {"x": [], "y": []}}
-
-        for i in range(self.m.shape[0]):
-            for j in range(self.m.shape[1]):
-                if self.map_status[i, j] != NOTMAPPED:
-                    xs = [q_x, r_x, None]
-                    ys = [
-                        (self.q_n / 2 - i) * y_scaling,
-                        (self.ref_n / 2 - j) * y_scaling,
-                        None,
-                    ]
-                    if self.map_status[i, j] == CORRECT:
-                        e["correct"]["x"] += xs
-                        e["correct"]["y"] += ys
-                    else:
-                        e["incorrect"]["x"] += xs
-                        e["incorrect"]["y"] += ys
-
-        correct_edge_trace = go.Scatter(
-            x=e["correct"]["x"],
-            y=e["correct"]["y"],
-            line=dict(width=3, color="#90EE90"),
-            hoverinfo="none",
-            mode="lines",
-            name="correct matching",
-        )
-
-        incorrect_edge_trace = go.Scatter(
-            x=e["incorrect"]["x"],
-            y=e["incorrect"]["y"],
-            line=dict(width=3, color="#F72F35"),
-            hoverinfo="none",
-            mode="lines",
-            name="incorrect matching",
-        )
-
-        fig = go.Figure(
-            data=[
-                correct_edge_trace,
-                incorrect_edge_trace,
-                q_trace,
-                r_trace,
-            ],
-            layout=go.Layout(
-                title=f"{self.q_name} to {self.ref_name} matching",
-                titlefont_size=16,
-                showlegend=False,
-                hovermode="closest",
-                margin=dict(b=20, l=5, r=5, t=40),
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            ),
-        )
-        fig.show()
 
     # def display_sunburst(self, datasets: List[AnnData]) -> None:
     #     """
