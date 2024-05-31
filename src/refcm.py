@@ -61,7 +61,7 @@ class RefCM:
         n_target_clusters: int | None = None,
         discovery_threshold: float | None = 0.2,
         verbose_solver: bool = False,
-        num_iter_max: int = 2e5,
+        num_iter_max: int = 1e7,
         n_top_genes: int = 1200,
         target_sum: int | None = None,
         max_cluster_size: int | None = MAX_CLUSTER_SIZE,
@@ -88,7 +88,7 @@ class RefCM:
             not get mapped and is instead considered a potentially new cell type
         verbose_solver: bool = False
             whether PuLP consol output should be silenced
-        num_iter_max: int = 2e5
+        num_iter_max: int = 1e7
             max number of iterations for the emd optimization
         n_top_genes: int = 1200
             Number of highly variable genes (in self) to select
