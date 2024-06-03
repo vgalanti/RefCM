@@ -89,10 +89,10 @@ class Matching:
             self.q_ktl[i] = lbl
 
         self.q_labels = np.array([*self.q_ktl.values()])
-        self.label_intersection = sorted(
+        self.common_labels = sorted(
             [*(set(self.ref_labels).intersection(self.q_labels))]
         )
-        self.n_common_labels = len(self.label_intersection)
+        self.n_common_labels = len(self.common_labels)
 
         self.ms: np.ndarray = np.full_like(self.m, NOTMAPPED)  # ms: map status
         for i in range(self.q_n):
@@ -117,7 +117,7 @@ class Matching:
 
         # masks used in determining how common/noncommon types are linked
         cmn_lbl_mask = np.array(
-            [*map(lambda x: x in self.label_intersection, self.q_ktl.values())]
+            [*map(lambda x: x in self.common_labels, self.q_ktl.values())]
         )
 
         qc_w_correct_mapping_mask = correct_mask.any(axis=1)
@@ -148,7 +148,9 @@ class Matching:
         self.common_w_correct_links = self.q_labels[cmn_w_correct_links_mask].tolist()
         self.n_common_w_correct_links = len(self.common_w_correct_links)
         self.pct_common_w_correct_links = (
-            qc_cts[cmn_w_correct_links_mask].sum() / q_ct_cmn
+            (qc_cts[cmn_w_correct_links_mask].sum() / q_ct_cmn)
+            if q_ct_cmn != 0
+            else 1.0
         )
 
         # query clusters with only correct links
@@ -157,7 +159,9 @@ class Matching:
         ].tolist()
         self.n_common_w_only_correct_links = len(self.common_w_only_correct_links)
         self.pct_common_w_only_correct_links = (
-            qc_cts[cmn_w_only_correct_links_mask].sum() / q_ct_cmn
+            (qc_cts[cmn_w_only_correct_links_mask].sum() / q_ct_cmn)
+            if q_ct_cmn != 0
+            else 1.0
         )
 
         # query clusters with incorrect links
@@ -166,7 +170,9 @@ class Matching:
         ].tolist()
         self.n_common_w_incorrect_links = len(self.common_w_incorrect_links)
         self.pct_common_w_incorrect_links = (
-            qc_cts[cmn_w_incorrect_links_mask].sum() / q_ct_cmn
+            (qc_cts[cmn_w_incorrect_links_mask].sum() / q_ct_cmn)
+            if q_ct_cmn != 0
+            else 1.0
         )
 
         # query clusters with only incorrect links
@@ -175,7 +181,9 @@ class Matching:
         ].tolist()
         self.n_common_w_only_incorrect_links = len(self.common_w_only_incorrect_links)
         self.pct_common_w_only_incorrect_links = (
-            qc_cts[cmn_w_only_incorrect_links_mask].sum() / q_ct_cmn
+            (qc_cts[cmn_w_only_incorrect_links_mask].sum() / q_ct_cmn)
+            if q_ct_cmn != 0
+            else 1.0
         )
 
         # query clusters with a correct link, but also incorrect link(s) from splitting.
@@ -186,23 +194,31 @@ class Matching:
             self.common_w_correct_and_incorrect_links
         )
         self.pct_common_w_correct_and_incorrect_links = (
-            qc_cts[cmn_w_correct_and_incorrect_links_mask].sum() / q_ct_cmn
+            (qc_cts[cmn_w_correct_and_incorrect_links_mask].sum() / q_ct_cmn)
+            if q_ct_cmn != 0
+            else 1.0
         )
 
         # query clusters that are incorrectly marked as discovered (i.e. not mapped to anything)
         self.common_notmapped = self.q_labels[cmn_notmapped_mask].tolist()
         self.n_common_notmapped = len(self.common_notmapped)
-        self.pct_common_notmapped = qc_cts[cmn_notmapped_mask].sum() / q_ct_cmn
+        self.pct_common_notmapped = (
+            qc_cts[cmn_notmapped_mask].sum() / q_ct_cmn if q_ct_cmn != 0 else 1.0
+        )
 
         # noncommon query clusters that are correctly marked as discovered.
         self.noncommon_discovered = self.q_labels[ncmn_discovered_mask].tolist()
         self.n_noncommon_discovered = len(self.noncommon_discovered)
-        self.pct_noncommon_discovered = qc_cts[ncmn_discovered_mask].sum() / q_ct_ncmn
+        self.pct_noncommon_discovered = (
+            qc_cts[ncmn_discovered_mask].sum() / q_ct_ncmn if q_ct_ncmn != 0 else 1.0
+        )
 
         # noncommon query clusters that are incorrectly assigned to anything
         self.noncommon_mapped = self.q_labels[ncmn_mapped_mask].tolist()
         self.n_noncommon_mapped = len(self.noncommon_mapped)
-        self.pct_noncommon_mapped = qc_cts[ncmn_mapped_mask].sum() / q_ct_ncmn
+        self.pct_noncommon_mapped = (
+            qc_cts[ncmn_mapped_mask].sum() / q_ct_ncmn if q_ct_ncmn != 0 else 1.0
+        )
 
         # logging
         logging.info(f"{self.q_name:<20} to {self.ref_name:<20}")
@@ -214,6 +230,8 @@ class Matching:
 
         # return summary stats as dictionary
         return {
+            "common": self.common_labels,
+            "n_common": len(self.common_labels),
             "counts": {k: v for k, v in zip(*np.unique(gt, return_counts=True))},
             "counts_total": qc_cts.sum(),
             "counts_total_common": q_ct_cmn,

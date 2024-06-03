@@ -37,6 +37,8 @@ def start_logging(console_level: int = logging.INFO) -> None:
     # add console handler to the root logger
     logging.getLogger("").addHandler(console)
 
+    logging.getLogger("numba").setLevel(logging.ERROR)
+
 
 def load_data_from_drive() -> None:
     """
