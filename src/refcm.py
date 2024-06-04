@@ -68,7 +68,7 @@ class RefCM:
         max_hvg_size: int | None = MAX_HVG_SIZE,
         cache_load: bool = True,
         cache_save: bool = True,
-        cache_fpath: str = config.WS_CACHE,
+        cache_fpath: str = config.CACHE,
     ) -> None:
         """
         Initializes RefCM instance
@@ -102,7 +102,7 @@ class RefCM:
             Whether to load existing mapping costs (if available) from cache.
         cache_save: bool = True,
             Whether to save new mapping costs to cache.
-        cache_fpath: str = config.WS_CACHE
+        cache_fpath: str = config.CACHE
             Path to stored mapping costs.
 
         """

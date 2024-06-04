@@ -27,7 +27,9 @@ We recommend creation of a new conda environment with the required dependencies 
   conda activate refcm
 ```
 
-To download the datasets we used, as well as see their source links and how we processed them, please view/run the [data setup notebook](./data/setup.ipynb).
+Windows users may need to follow the steps described [here](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows) and restart their IDE to install GLPK, a requirement for the linear programming solver.
+
+To download the datasets we used, please visit our [google drive link](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link) and our [data setup notebook](./data/setup.ipynb) where we list the original source links and how we processed the data.
 
 
 ## Usage <a name="usage"></a>
