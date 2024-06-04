@@ -1,11 +1,7 @@
-import gdown
 import logging
 
 LOG_FILE = "log.log"
-WS_CACHE = "ws_cache.json"
-DRIVE_ID = "1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ"
-MATCHING_FILE = "matchings.csv"
-MATCHING_COSTS_FILE = "matching_costs.csv"
+CACHE = "cache.json"
 
 lg = logging.getLogger(__name__)
 
@@ -38,12 +34,3 @@ def start_logging(console_level: int = logging.INFO) -> None:
     logging.getLogger("").addHandler(console)
 
     logging.getLogger("numba").setLevel(logging.ERROR)
-
-
-def load_data_from_drive() -> None:
-    """
-    Downloads datasets from google drive folder listed in config file.
-    """
-    lg.info(f"starting download from gdrive")
-    gdown.download_folder(id=DRIVE_ID)
-    lg.info("drive download complete")
