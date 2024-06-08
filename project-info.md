@@ -26,7 +26,7 @@ git switch <branch>
 ```
 where `<branch>` was the `remote` branch listed when running `git branch -a`, ignoring the "remotes/origin" prefix. For example, for this particular branch, you would want to run
 ```shell
-git switch param-search
+git switch alt-embed
 ```
 This will create a local version of the branch that you can work on and push to `remote` as you see fit. If you run `git branch -a`, you should now be able to see this new branch without the "remotes/origin" prefix, and it should be marked as your current branch with `*`.
 
