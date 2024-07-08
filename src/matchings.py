@@ -343,7 +343,7 @@ class Matching:
             )
         fig.show()
 
-    def eval_link(q_label: str, ref_label: str) -> float:
+    def eval_link(self, q_label: str, ref_label: str) -> float:
         """
         Evaluates the matching/link between query and reference labels/types.
 
@@ -366,7 +366,7 @@ class Matching:
         """
         # make inputs lowercase, and remove whitespaces
         q_label = q_label.lower().strip()
-        ref_label = ref_label.lower.strip()
+        ref_label = ref_label.lower().strip()
 
         # check if the two are directly equal
         if q_label == ref_label:
@@ -375,3 +375,5 @@ class Matching:
         # check if they are equal up to a naming convention/choice
 
         # (challenge problem) get a informative value for the "in-between"
+
+        return 0
