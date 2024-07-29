@@ -278,7 +278,6 @@ class RefCM:
         if self._discovery_threshold is not None:
             c[c >= -self._discovery_threshold] = 1e2  # > 0
 
-        log.debug(c)
         m = self.lp_match(c)
         return m, cost, ref_ktl
 
