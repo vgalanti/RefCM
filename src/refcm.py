@@ -12,6 +12,7 @@ from tqdm import tqdm
 from typing import Union, List, Callable, Tuple, Dict, TypedDict, TypeAlias
 from anndata import AnnData
 from matchings import Matching
+from embeddings import Embedder, HVGEmbedder
 
 
 # config and logging setup
@@ -19,7 +20,7 @@ import config
 import logging
 import warnings
 
-logging = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 # ignore pandas FutureWarnings originating from Scanpy's HVG method
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -62,10 +63,7 @@ class RefCM:
         discovery_threshold: float | None = 0.2,
         verbose_solver: bool = False,
         num_iter_max: int = 1e7,
-        n_top_genes: int = 1200,
-        target_sum: int | None = None,
-        max_cluster_size: int | None = MAX_CLUSTER_SIZE,
-        max_hvg_size: int | None = MAX_HVG_SIZE,
+        embedder: Embedder = HVGEmbedder(),
         cache_load: bool = True,
         cache_save: bool = True,
         cache_fpath: str = config.CACHE,
@@ -90,14 +88,8 @@ class RefCM:
             whether PuLP consol output should be silenced
         num_iter_max: int = 1e7
             max number of iterations for the emd optimization
-        n_top_genes: int = 1200
-            Number of highly variable genes (in self) to select
-        target_sum: int | None = None
-            Target row sum after normalization.
-        max_cluster_size: int | None = MAX_CLUSTER_SIZE
-            The maximum cluster size we would subsample larger clusters to.
-        max_hvg_size: int | None = MAX_HVG_SIZE
-            The maximum number of rows we pass to scanpy's hvg computation.
+        embedder: Embedder = HVGEmbedder()
+            the embedder to use.
         cache_load: bool = True
             Whether to load existing mapping costs (if available) from cache.
         cache_save: bool = True,
@@ -106,7 +98,7 @@ class RefCM:
             Path to stored mapping costs.
 
         """
-        logging.info("NOTE: raw counts expected in anndata .X attributes.")
+        log.info("NOTE: raw counts expected in anndata .X attributes.")
 
         self._max_merges: int = max_merges
         self._max_splits: int = max_splits
@@ -114,10 +106,7 @@ class RefCM:
         self._discovery_threshold: float | None = discovery_threshold
         self._verbose_solver: bool = verbose_solver
         self._num_iter_max: int = num_iter_max
-        self._n_top_genes: int = n_top_genes
-        self._target_sum: int | None = target_sum
-        self._max_cluster_size: int | None = max_cluster_size
-        self._max_hvg_size: int | None = max_hvg_size
+        self._embedder: Embedder = embedder
         self._cache_fpath: str = cache_fpath
         self._cache_load: bool = cache_load
         self._cache_save: bool = cache_save
@@ -127,11 +116,11 @@ class RefCM:
         self,
         q: AnnData,
         q_id: str,
-        ref: Union[List[AnnData], AnnData],
-        ref_id: Union[List[str], str],
-        ref_key_labels: Union[List[str], str],
-        q_key_clusters: str = None,
-        q_clustering_func: Union[Callable[[AnnData], AnnData], str] = "leiden",
+        ref: AnnData | List[AnnData],
+        ref_id: str | List[str],
+        ref_key_labels: str | List[str],
+        q_key_clusters: str | None = None,
+        q_clustering_func: str | Callable[[AnnData], AnnData] = "leiden",
     ) -> Matching:
         """
         Annotates a query dataset utilizing reference dataset(s)
@@ -142,15 +131,15 @@ class RefCM:
             Query data to annotate
         q_id: str
             Query id (name) for saving.
-        ref: Union[List[AnnData], AnnData]
+        ref: AnnData | List[AnnData]
             Reference datasets to utilize for annotation
-        ref_id: Union[List[str], str]
+        ref_id: str | List[str]
             Reference ids (names) for saving.
-        ref_key_labels: Union[List[str], str]
+        ref_key_labels: str | List[str]
             'obs' keys in the reference datasets corresponding to their cell type labels
-        q_key_clusters: str = None
+        q_key_clusters: str | None = None
             'obs' key corresponding to the query's current clustering
-        q_clustering_func: Union[Callable[[AnnData], AnnData], str] = "leiden"
+        q_clustering_func: str | Callable[[AnnData], AnnData] = "leiden"
             In case the query's clusters have not yet been computed, the clustering
             algorithm to apply.
             Resulting clustering should result in adata.obs[q_key_clusters]
@@ -166,23 +155,23 @@ class RefCM:
         if q_key_clusters is None:
             if type(q_clustering_func) == str:
                 if q_clustering_func != "leiden":
-                    logging.warning("Clustering other than default not yet supported")
-                    logging.warning("Defaulting to Leiden clustering")
+                    log.warning("Clustering other than default not yet supported")
+                    log.warning("Defaulting to Leiden clustering")
                 else:
-                    logging.info("Using default Leiden clustering")
+                    log.info("Using default Leiden clustering")
 
                 q_clustering_func = dflt_clustering_func
                 q_key_clusters = "leiden"
 
             else:
-                logging.info("Using input clustering function")
+                log.info("Using input clustering function")
 
-            logging.info("Clustering the query dataset")
+            log.info("Clustering the query dataset")
             q_clustering_func(q)
 
         # check that the given key to the clusterings exists
         if q_key_clusters not in q.obs.columns:
-            logging.error("Key mapping to clusters invalid. Exiting.")
+            log.error("Key mapping to clusters invalid. Exiting.")
             return
 
         # add temporary metadata to the references for downstream tasks
@@ -194,7 +183,7 @@ class RefCM:
         for i, r in enumerate(ref):
 
             if ref_key_labels[i] not in r.obs.columns:
-                logging.error(f"Reference {ref_id[i]}'s .obs cluster key invalid.")
+                log.error(f"Reference {ref_id[i]}'s .obs cluster key invalid.")
                 return
 
             ltk, ktl = {}, {}
@@ -281,9 +270,13 @@ class RefCM:
         costs = [self._matching_cost(q, r) for r in ref]
         cost, ref_ktl = self._merge_costs(q, ref, costs)
 
+        # normalize between -1 and 0
+        mx, mn = cost.max(), cost.min()
+        cost = (cost - mx) / (mx - mn)
+
         c = cost.copy()
         if self._discovery_threshold is not None:
-            c += abs(cost.min() * self._discovery_threshold)
+            c[c >= -self._discovery_threshold] = 1e2  # > 0
 
         m = self.lp_match(c)
         return m, cost, ref_ktl
@@ -361,7 +354,7 @@ class RefCM:
         if self._cache_load:
             c = self._cache_get(q_id, ref_id)
             if c is not None:
-                logging.debug(f"Using costs for {q_id}->{ref_id} found in cache.")
+                log.debug(f"Using costs for {q_id}->{ref_id} found in cache.")
                 return np.array(c)
 
         # otherwise, compute them
@@ -388,36 +381,29 @@ class RefCM:
         np.ndarray
             the query -> reference wasserstein distances
             Shape: (n_query_clusters, n_reference_clusters)
+
+        TODO
+        ----
+        * test multiprocessing/threading option
         """
         unif = lambda s: np.ones(s) / s
 
-        # log1p normalize query and referenc
-        q_sums = q.X.sum(axis=1).reshape((-1, 1))
-        ref_sums = ref.X.sum(axis=1).reshape((-1, 1))
-
-        if self._target_sum is not None:
-            q.X = self._target_sum * q.X / q_sums
-            ref.X = self._target_sum * ref.X / ref_sums
-
-        q.X = np.log1p(q.X)
-        ref.X = np.log1p(ref.X)
-
-        # filter out the most relevant genes
-        gs = self.joint_gene_subset(q, ref)
+        # fit the embedding to query and reference pair
+        self._embedder.fit(q, ref)
 
         # compute wasserstein distances between cluster pairs
-        logging.debug("Computing Wasserstein distances.")
+        log.debug("Computing Wasserstein distances.")
         ws = np.zeros((q.uns["_nc"], ref.uns["_nc"]))
 
         tqdm_bar = "|{bar:16}| [{percentage:>6.2f}% ] : {elapsed}"
         with tqdm(total=q.uns["_nc"] * ref.uns["_nc"], bar_format=tqdm_bar) as pbar:
             for qc in range(q.uns["_nc"]):
-                x_qc = q[q.obs["refcm_clusters"] == qc, gs].X
-                x_qc = self._memreg(x_qc)
+                x_qc = q[q.obs["refcm_clusters"] == qc]
+                x_qc = self._embedder.embed(x_qc)
 
                 for rc in range(ref.uns["_nc"]):
-                    x_rc = ref[ref.obs[ref.uns["_ck"]] == ref.uns["_ktl"][rc], gs].X
-                    x_rc = self._memreg(x_rc)
+                    x_rc = ref[ref.obs[ref.uns["_ck"]] == ref.uns["_ktl"][rc]]
+                    x_rc = self._embedder.embed(x_rc)
 
                     a, b = unif(len(x_qc)), unif(len(x_rc))
                     M = -x_qc @ x_rc.T
@@ -425,95 +411,7 @@ class RefCM:
                     ws[qc][rc] = ot.emd2(a, b, M, numItermax=self._num_iter_max)
                     pbar.update(1)
 
-        # convert query and reference back to raw counts
-        q.X = np.expm1(q.X)
-        ref.X = np.expm1(ref.X)
-
-        if self._target_sum is not None:
-            q.X *= q_sums / self._target_sum
-            ref.X *= ref_sums / self._target_sum
-
         return ws
-
-    def _memreg(self, x: np.ndarray) -> np.ndarray:
-        """
-        Regulates memory usage for large clusters.
-
-        Parameters
-        ----------
-        x: np.ndarray | scipy sparse matrix
-            The cluster to preprocess.
-
-        Returns
-        -------
-        np.ndarray:
-            The normalized/preprocessed cluster in non-sparse format.
-        """
-
-        if self._max_cluster_size is not None and x.shape[0] > self._max_cluster_size:
-            sbs = np.random.choice(x.shape[0], self._max_cluster_size, replace=False)
-            x = x[sbs]
-
-        if scipy.sparse.issparse(x):
-            x = x.toarray()
-
-        return x
-
-    # TODO add the marker gene options here
-    def joint_gene_subset(self, q: AnnData, ref: AnnData) -> List[str]:
-        """
-        Select a highly variable gene subset that is common to both query and reference.
-
-        Parameters
-        ----------
-        q: Dataset
-            query dataset
-        ref: Dataset
-            reference dataset
-
-        Returns
-        -------
-        List[str]
-            A subset of gene identifiers to use.
-        """
-        logging.debug("Selecting joint gene subset for query and reference datasets")
-
-        # select highly variable genes from both query and reference datasets
-        hvg = set(self._hvg(q)).union(self._hvg(ref))
-
-        # intersect genes to make sure we don't have discrepencies
-        common_genes = np.intersect1d(q.var_names, ref.var_names)
-
-        # only note those that are both highly variable and common to the other
-        gene_subset = list(set(hvg) & set(common_genes))
-        logging.debug(f"Using {len(gene_subset)} genes.")
-
-        return gene_subset
-
-    def _hvg(self, ds: AnnData) -> List[str]:
-        """
-        Returns an AnnData's highly-variable genes list.
-
-        Parameters
-        ----------
-        ds: AnnData
-            The dataset to compute the hvg genes of.
-
-        Returns
-        -------
-        List[str]:
-            List of genes with the highest variability.
-        """
-        if self._max_hvg_size is None:
-            tmp = ds.copy()
-        else:
-            n = ds.X.shape[0]
-            sbset = np.random.choice(n, min(n, MAX_HVG_SIZE), replace=False)
-            tmp = ds[sbset].copy()
-
-        sc.pp.highly_variable_genes(tmp, n_top_genes=self._n_top_genes)
-
-        return tmp.var["highly_variable"][tmp.var["highly_variable"]].index.to_list()
 
     def lp_match(self, cost: np.ndarray) -> np.ndarray:
         """
@@ -562,9 +460,9 @@ class RefCM:
                 prob += pl.lpSum([e[v][i] for v in q_n]) <= w[i] * len(q_n)
             prob += pl.lpSum([w[i] for i in ref_n]) <= self._n_target_cluster
         # solve the problem and return it (msg=0 to suppress messages)
-        logging.debug(f"starting LP optimization")
+        log.debug(f"starting LP optimization")
         prob.solve(pl.GLPK_CMD(msg=self._verbose_solver))  # pl.PULP_CBC_CMD(msg=0))
-        logging.debug(f'optimization terminated w. status "{pl.LpStatus[prob.status]}"')
+        log.debug(f'optimization terminated w. status "{pl.LpStatus[prob.status]}"')
 
         # retrieve the matches
         m = np.zeros_like(cost)
@@ -581,10 +479,10 @@ class RefCM:
     def _load_cache(self) -> List[CachedCost]:
         """Loads cached mapping costs."""
         if not os.path.isfile(self._cache_fpath):
-            logging.debug(f"No existing cost-cache found ({self._cache_fpath}).")
+            log.debug(f"No existing cost-cache found ({self._cache_fpath}).")
             return []
         else:
-            logging.debug(f"Loading cached mapping costs from {self._cache_fpath}.")
+            log.debug(f"Loading cached mapping costs from {self._cache_fpath}.")
             with open(self._cache_fpath, "r") as f:
                 return json.load(f)
 
@@ -617,7 +515,7 @@ class RefCM:
         result = list(filter(pred, self._cache))
 
         if len(result) > 1:
-            logging.error(f"Corrupted Cache: conflicting entries for {q_id}->{ref_id}")
+            log.error(f"Corrupted Cache: conflicting entries for {q_id}->{ref_id}")
             raise Exception(f"Corrupted Cache {self._cache_fpath}.")
 
         return result[0]["costs"] if len(result) == 1 else None
@@ -639,7 +537,7 @@ class RefCM:
         if self._cache_get(q_id, ref_id) is not None:
             return
 
-        logging.debug(f"Saving {q_id}->{ref_id} mapping costs to {self._cache_fpath}.")
+        log.debug(f"Saving {q_id}->{ref_id} mapping costs to {self._cache_fpath}.")
         self._cache.append(
             {
                 "q_id": q_id,
