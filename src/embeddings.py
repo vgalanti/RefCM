@@ -33,6 +33,7 @@ class Embedder:
 
     def fit(self, q: AnnData, ref: AnnData) -> None:
         """Fits to a given query and reference pair."""
+        pass
 
     def embed(self, cluster: AnnData) -> np.ndarray:
         """Returns the embedding for a given cluster."""
@@ -158,11 +159,6 @@ class HVGEmbedder(Embedder):
         -------
         np.ndarray
             The embedding for said cluster.
-
-        TODO
-        ----
-        * not sure we need the target sum rescaling,
-          in theory this shouldn't affect relative WS costs downstream.
         """
         # gene subset
         x = cluster[:, self.gs].X.copy()
