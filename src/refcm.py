@@ -270,10 +270,15 @@ class RefCM:
         costs = [self._matching_cost(q, r) for r in ref]
         cost, ref_ktl = self._merge_costs(q, ref, costs)
 
+        # normalize between -1 and 0
+        mx, mn = cost.max(), cost.min()
+        cost = (cost - mx) / (mx - mn)
+
         c = cost.copy()
         if self._discovery_threshold is not None:
-            c += abs(cost.min() * self._discovery_threshold)
+            c[c >= -self._discovery_threshold] = 1e2  # > 0
 
+        log.debug(c)
         m = self.lp_match(c)
         return m, cost, ref_ktl
 
