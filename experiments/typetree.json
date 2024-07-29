@@ -1,0 +1,113 @@
+{
+    "Excitatory": {
+        "Exc L2/3 IT": {
+            "_cost": 0.7
+        },
+        "Exc L3/5 IT": {
+            "_cost": 0.7
+        },
+        "Exc L4/5 IT": {
+            "_cost": 0.7
+        },
+        "Exc L5 PT": {
+            "_cost": 0.7
+        },
+        "Exc L5/6 IT 1": {
+            "_cost": 0.7
+        },
+        "Exc L5/6 IT 2": {
+            "_cost": 0.7
+        },
+        "Exc L5/6 IT 3": {
+            "_cost": 0.7
+        },
+        "Exc L5/6 NP": {
+            "_cost": 0.7
+        },
+        "Exc L6 CT": {
+            "_cost": 0.7
+        },
+        "Exc L6 IT 1": {
+            "_cost": 0.7
+        },
+        "Exc L6 IT 2": {
+            "_cost": 0.7
+        },
+        "Exc L6b": {
+            "_cost": 0.7
+        },
+        "_cost": 1
+    },
+    "Inhibitory": {
+        "Chandelier": {
+            "_cost": 0.7
+        },
+        "Lamp5 1": {
+            "_cost": 0.7
+        },
+        "Lamp5 2": {
+            "_cost": 0.7
+        },
+        "Lamp5 Lhx6": {
+            "_cost": 0.7
+        },
+        "Lamp5 Rosehip": {
+            "_cost": 0.7
+        },
+        "Pax6": {
+            "_cost": 0.7
+        },
+        "Pvalb 1": {
+            "_cost": 0.7
+        },
+        "Pvalb 2": {
+            "_cost": 0.7
+        },
+        "Sst 1": {
+            "_cost": 0.7
+        },
+        "Sst 2": {
+            "_cost": 0.7
+        },
+        "Sst 3": {
+            "_cost": 0.7
+        },
+        "Sst 4": {
+            "_cost": 0.7
+        },
+        "Sst 5": {
+            "_cost": 0.7
+        },
+        "Sst Chodl": {
+            "_cost": 0.7
+        },
+        "Vip 1": {
+            "_cost": 0.7
+        },
+        "Vip 2": {
+            "_cost": 0.7
+        },
+        "Vip 3": {
+            "_cost": 0.7
+        },
+        "Vip 4": {
+            "_cost": 0.7
+        },
+        "Vip 5": {
+            "_cost": 0.7
+        },
+        "Vip Sncg": {
+            "_cost": 0.7
+        },
+        "_cost": 1
+    },
+    "Non-neuronal": {
+        "Astrocyte": {
+            "_cost": 0.7
+        },
+        "Oligo": {
+            "_cost": 0.7
+        },
+        "_cost": 1
+    }
+}
