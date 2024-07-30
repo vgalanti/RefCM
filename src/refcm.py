@@ -13,6 +13,7 @@ from typing import Union, List, Callable, Tuple, Dict, TypedDict, TypeAlias
 from anndata import AnnData
 from matchings import Matching
 from embeddings import Embedder, HVGEmbedder
+from sklearn.metrics.pairwise import pairwise_distances
 
 
 # config and logging setup
@@ -64,6 +65,7 @@ class RefCM:
         verbose_solver: bool = False,
         num_iter_max: int = 1e7,
         embedder: Embedder = HVGEmbedder(),
+        pdist: str = "default",
         cache_load: bool = True,
         cache_save: bool = True,
         cache_fpath: str = config.CACHE,
@@ -90,6 +92,10 @@ class RefCM:
             max number of iterations for the emd optimization
         embedder: Embedder = HVGEmbedder()
             the embedder to use.
+        pdist: str = 'default'
+            the pairwise distance to use between query and reference cells.
+            str compatible with sklearn's pairwise_distances.
+            defaults to -dot(a, b)
         cache_load: bool = True
             Whether to load existing mapping costs (if available) from cache.
         cache_save: bool = True,
@@ -106,6 +112,7 @@ class RefCM:
         self._discovery_threshold: float | None = discovery_threshold
         self._verbose_solver: bool = verbose_solver
         self._num_iter_max: int = num_iter_max
+        self._pdist: str = pdist
         self._embedder: Embedder = embedder
         self._cache_fpath: str = cache_fpath
         self._cache_load: bool = cache_load
@@ -406,7 +413,12 @@ class RefCM:
                     x_rc = self._embedder.embed(x_rc)
 
                     a, b = unif(len(x_qc)), unif(len(x_rc))
-                    M = -x_qc @ x_rc.T
+
+                    M = (
+                        -x_qc @ x_rc.T
+                        if self._pdist == "default"
+                        else pairwise_distances(x_qc, x_rc, self._pdist)
+                    )
 
                     ws[qc][rc] = ot.emd2(a, b, M, numItermax=self._num_iter_max)
                     pbar.update(1)
