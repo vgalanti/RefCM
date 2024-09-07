@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from anndata import AnnData
@@ -15,6 +16,8 @@ logging = logging.getLogger(__name__)
 NOTMAPPED = -1
 INCORRECT = 0
 CORRECT = 1
+
+TYPE_EQUALITY_STRICTNESS = 1.0
 
 
 class Matching:
@@ -66,6 +69,13 @@ class Matching:
         self.ref_ktl: dict[int, str] = q.uns["refcm_ref_ktl"].copy()
         self.ref_labels: List[str] = [*self.ref_ktl.values()]
 
+        # create type tree
+        with open(config.TREE_FILE, "r") as f:
+            tt = json.load(f)
+        self.tree = {}
+        for p, c, s in tt:
+            self.tree[c.lower().strip()] = (p.lower().strip(), s)
+
     def eval(self, ground_truth_obs_key: str) -> Dict:
         """
         Evaluates a given query -> reference matching
@@ -102,8 +112,11 @@ class Matching:
                 rl = self.ref_ktl[j]
 
                 if self.m[i, j] == 1:
-                    self.ms[i, j] = CORRECT if ql == rl else INCORRECT
-                    s = "\x1b[32m[+]\x1B[0m" if ql == rl else "\x1B[31m[-]\x1B[0m"
+
+                    is_correct = self.eval_link(ql, rl) >= TYPE_EQUALITY_STRICTNESS
+
+                    self.ms[i, j] = CORRECT if is_correct else INCORRECT
+                    s = "\x1b[32m[+]\x1B[0m" if is_correct else "\x1B[31m[-]\x1B[0m"
                     logging.debug(f"{s} {ql:<20} mapped to {rl:<20}")
 
         # calculations on the total number of correct/incorrect/missing links
@@ -318,7 +331,13 @@ class Matching:
                         # change the color to indicate whether it is correct or not,
                         # only possible if ground_truth_obs_key was given
                         if ground_truth_obs_key is not None:
-                            c = "green" if q_labels[i] == self.ref_ktl[j] else "red"
+                            c = (
+                                "green"
+                                if self.eval_link(q_labels[i], self.ref_ktl[j])
+                                >= TYPE_EQUALITY_STRICTNESS
+                                else "red"
+                            )
+
                         else:
                             c = "blue"
 
@@ -338,62 +357,59 @@ class Matching:
             )
         fig.show()
 
-    def display_matching_graph(self) -> None:
-        """Display the bipartite matching graph"""
-        # TODO utilize pyviz
+    def eval_link(self, q_label: str, ref_label: str) -> float:
+        """
+        Evaluates the matching/link between query and reference labels/types.
 
-        logging.error("Deprecated")
-        return
 
-    # def display_sunburst(self, datasets: List[AnnData]) -> None:
-    #     """
-    #     Displays a sunburst chart comparing distribution & counts of
-    #     cell types in each dataset
+        Parameters
+        ----------
+        q_label: str
+            The query label to check for equality.
+        ref_label: str
+            The reference label to check with.
 
-    #     Parameters
-    #     ----------
-    #     datasets: List[AnnData]
-    #         list of datasets
-    #     """
-    #     # TODO
-    #     dfs = []
-    #     for ds in datasets:
-    #         df = pd.DataFrame({"key": ds.labels, "source": ds.name})
+        Returns
+        -------
+        float:
+            Number between 0 and 1 that indicates how equal the labels are.
+            1 if and only if this is an exact match, e.g. if the labels match
+            up to upper/lower-case and whitespaces differences, or it's just an
+            equivalent choice from the authors (i.e. "Treg" vs "Regulatory T cell").
+            0 indicates that the labels are completely different.
+        """
+        # make inputs lowercase, and remove whitespaces
+        q_label = q_label.lower().strip()
+        ref_label = ref_label.lower().strip()
 
-    #         df["label"] = df.key.apply(lambda s: ds._keys_to_labels[s])
-    #         df["key:label"] = "(" + df["key"].astype("str") + ") " + df["label"]
-    #         dfs.append(df)
-    #     df = pd.concat(dfs)
+        # check if the two are directly equal
+        if q_label == ref_label:
+            return 1.0
 
-    #     df2 = (
-    #         df[["source", "label"]]
-    #         .value_counts()
-    #         .reset_index()
-    #         .rename(columns={0: "count"})
-    #     )
-    #     fig = px.sunburst(df2, path=["source", "label"], values="count")
-    #     fig.show()
+        # otherwise, go through ancestors to check closest parent
+        q_anc, q_sim = self._tree_ancestors(q_label)
+        ref_anc, ref_sim = self._tree_ancestors(ref_label)
 
-    # def display_count_histogram(datasets: List[AnnData]) -> None:
-    #     """
-    #     Displays a count histogram comparing distribution & counts of
-    #     cell types in each dataset
+        isect = [i for i, v in enumerate(q_anc) if v in ref_anc]
 
-    #     Parameters
-    #     ----------
-    #     datasets: List[AnnData]
-    #         list of datasets
-    #     """
-    #     dfs = []
-    #     for ds in datasets:
-    #         df = pd.DataFrame({"key": ds.labels, "source": ds.name})
+        if len(isect) == 0:
+            return 0
 
-    #         df["label"] = df.key.apply(lambda s: ds._keys_to_labels[s])
-    #         df["key:label"] = "(" + df["key"].astype("str") + ") " + df["label"]
-    #         dfs.append(df)
-    #     df = pd.concat(dfs)
+        q_idx = min(isect)
+        ref_idx = ref_anc.index(q_anc[q_idx])
 
-    #     fig = px.histogram(
-    #         df.sort_values("label"), x="label", color="source", barmode="group"
-    #     )
-    #     fig.show()
+        logging.debug(
+            f"{q_label} | {q_sim[q_idx]:.2f} > {q_anc[q_idx]} < {ref_sim[ref_idx]:.2f} | {ref_label}"
+        )
+
+        return min(q_sim[q_idx], ref_sim[ref_idx])
+
+    def _tree_ancestors(self, t: str) -> Tuple[List[str], List[float]]:
+        ancestors = [t]
+        sim = [1.0]
+        while self.tree.get(t) is not None:
+            t, v = self.tree.get(t)
+            ancestors.append(t)
+            sim.append(v)
+
+        return ancestors, sim

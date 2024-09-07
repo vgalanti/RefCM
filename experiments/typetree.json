@@ -1,0 +1,597 @@
+[
+    [
+        "Inhibitory",
+        "Sst 1",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Lamp5 Rosehip",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip 5",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Pvalb 2",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Sst 3",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Pvalb 1",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip 3",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Pax6",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip 1",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip Sncg",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip 4",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Lamp5 2",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Lamp5 Lhx6",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Sst 4",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Chandelier",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Vip 2",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Sst 2",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Sst 5",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Sst Chodl",
+        0.7
+    ],
+    [
+        "Inhibitory",
+        "Lamp5 1",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L5/6 IT 3",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L6 CT",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L6b",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L4/5 IT",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L5/6 IT 2",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L6 IT 1",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L6 IT 2",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L5/6 NP",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L2/3 IT",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L5/6 IT 1",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L3/5 IT",
+        0.7
+    ],
+    [
+        "Excitatory",
+        "Exc L5 PT",
+        0.7
+    ],
+    [
+        "Non-neuronal",
+        "Astrocyte",
+        0.7
+    ],
+    [
+        "Non-neuronal",
+        "Oligo",
+        0.7
+    ],
+    [
+        "T cell",
+        "alpha-beta T cell",
+        0.7
+    ],
+    [
+        "T cell",
+        "gamma-delta T cell",
+        0.7
+    ],
+    [
+        "T cell",
+        "regulatory T cell",
+        0.7
+    ],
+    [
+        "regulatory T cell",
+        "Treg",
+        1.0
+    ],
+    [
+        "T cell",
+        "Cytotoxic T cell",
+        0.7
+    ],
+    [
+        "T cell",
+        "CD4+ T cell",
+        0.7
+    ],
+    [
+        "T cell",
+        "fetal T cell",
+        0.7
+    ],
+    [
+        "T cell",
+        "mucosal invariant T cell",
+        0.7
+    ],
+    [
+        "alpha-beta T cell",
+        "CD4-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD4-positive, alpha-beta T cell",
+        "central memory CD4-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD4-positive, alpha-beta T cell",
+        "effector memory CD4-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD4-positive, alpha-beta T cell",
+        "effector memory CD4-positive, alpha-beta T cell, terminally differentiated",
+        0.9
+    ],
+    [
+        "CD4-positive, alpha-beta T cell",
+        "activated CD4-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "alpha-beta T cell",
+        "CD8-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD8-positive, alpha-beta T cell",
+        "central memory CD8-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD8-positive, alpha-beta T cell",
+        "effector memory CD8-positive, alpha-beta T cell",
+        0.9
+    ],
+    [
+        "CD8-positive, alpha-beta T cell",
+        "effector memory CD8-positive, alpha-beta T cell, terminally differentiated",
+        0.9
+    ],
+    [
+        "monocyte",
+        "classical monocyte",
+        0.7
+    ],
+    [
+        "monocyte",
+        "non-classical monocyte",
+        0.7
+    ],
+    [
+        "monocyte",
+        "CD14+ monocyte",
+        0.7
+    ],
+    [
+        "monocyte",
+        "CD16+ monocyte",
+        0.7
+    ],
+    [
+        "B cell",
+        "class switched memory B cell",
+        0.7
+    ],
+    [
+        "B cell",
+        "memory B cell",
+        0.7
+    ],
+    [
+        "B cell",
+        "follicular B cell",
+        0.7
+    ],
+    [
+        "B cell",
+        "germinal center B cell",
+        0.7
+    ],
+    [
+        "B cell",
+        "pro-B cell",
+        0.7
+    ],
+    [
+        "B cell",
+        "naive B cell",
+        0.8
+    ],
+    [
+        "B cell",
+        "unswitched memory B cell",
+        0.8
+    ],
+    [
+        "dendritic cell",
+        "conventional dendritic cell",
+        1.0
+    ],
+    [
+        "dendritic cell",
+        "dendritic cell, human",
+        1.0
+    ],
+    [
+        "dendritic cell",
+        "plasmacytoid dendritic cell",
+        0.9
+    ],
+    [
+        "plasmacytoid dendritic cell",
+        "plasmacytoid dendritic cell, human",
+        1.0
+    ],
+    [
+        "NK cell",
+        "natural killer cell",
+        1.0
+    ],
+    [
+        "epithelial cell",
+        "kidney distal convoluted tubule epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "epithelial cell of proximal tubule",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "kidney connecting tubule epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "kidney inner medulla collecting duct epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "kidney loop of Henle thin ascending limb epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "kidney loop of Henle thick ascending limb epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "kidney loop of Henle thin descending limb epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "parietal epithelial cell",
+        0.9
+    ],
+    [
+        "epithelial cell",
+        "BEST4+ intestinal epithelial cell, human",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "endothelial",
+        1.0
+    ],
+    [
+        "endothelial cell",
+        "glomerular capillary endothelial cell",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "endothelial cell of lymphatic vessel",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "endothelial cell of periportal hepatic sinusoid",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "peritubular capillary endothelial cell",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "endothelial cell of pericentral hepatic sinusoid",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "alveolar capillary type 2 endothelial cell",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "endothelial cell of artery",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "capillary endothelial cell",
+        0.9
+    ],
+    [
+        "endothelial cell",
+        "vein endothelial cell",
+        0.9
+    ],
+    [
+        "progenitor cell",
+        "megakaryocyte-erythroid progenitor cell",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "common myeloid progenitor",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "megakaryocyte progenitor cell",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "neutrophil progenitor cell",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "common dendritic progenitor",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "early lymphoid progenitor",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "hematopoietic multipotent progenitor cell",
+        0.8
+    ],
+    [
+        "progenitor cell",
+        "granulocyte monocyte progenitor cell",
+        0.8
+    ],
+    [
+        "hepatocyte",
+        "centrilobular region hepatocyte",
+        0.9
+    ],
+    [
+        "hepatocyte",
+        "midzonal region hepatocyte",
+        0.9
+    ],
+    [
+        "hepatocyte",
+        "periportal region hepatocyte",
+        0.9
+    ],
+    [
+        "macrophage",
+        "alveolar macrophage",
+        0.9
+    ],
+    [
+        "macrophage",
+        "inflammatory macrophage",
+        0.9
+    ],
+    [
+        "macrophage",
+        "colon macrophage",
+        0.9
+    ],
+    [
+        "myocyte",
+        "regular ventricular cardiac myocyte",
+        0.9
+    ],
+    [
+        "myocyte",
+        "regular atrial cardiac myocyte",
+        0.9
+    ],
+    [
+        "fibroblast cell",
+        "fibroblast",
+        1.0
+    ],
+    [
+        "fibroblast cell",
+        "myofibroblast cell",
+        0.9
+    ],
+    [
+        "fibroblast cell",
+        "fibroblast of lung",
+        0.9
+    ],
+    [
+        "fibroblast cell",
+        "alveolar type 1 fibroblast cell",
+        0.9
+    ],
+    [
+        "fibroblast cell",
+        "kidney interstitial fibroblast",
+        0.9
+    ],
+    [
+        "fibroblast cell",
+        "renal medullary fibroblast",
+        0.9
+    ],
+    [
+        "muscle cell",
+        "vascular associated smooth muscle cell",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "smooth muscle cell of the pulmonary artery",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "slow muscle cell",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "cardiac muscle cell",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "cell of skeletal muscle",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "smooth muscle cell",
+        0.7
+    ],
+    [
+        "muscle cell",
+        "fast muscle cell",
+        0.7
+    ],
+    [
+        "stem cell",
+        "mesenchymal stem cell",
+        0.9
+    ],
+    [
+        "stem cell",
+        "skeletal muscle satellite stem cell",
+        0.9
+    ],
+    [
+        "mast cell",
+        "mast",
+        1.0
+    ],
+    [
+        "Astrocyte",
+        "astro",
+        1.0
+    ]
+]
