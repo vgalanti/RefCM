@@ -112,11 +112,15 @@ class Matching:
                 rl = self.ref_ktl[j]
 
                 if self.m[i, j] == 1:
-
-                    is_correct = self.eval_link(ql, rl) >= TYPE_EQUALITY_STRICTNESS
+                    el = self.eval_link(ql, rl)
+                    is_correct = el >= TYPE_EQUALITY_STRICTNESS
 
                     self.ms[i, j] = CORRECT if is_correct else INCORRECT
-                    s = "\x1b[32m[+]\x1B[0m" if is_correct else "\x1B[31m[-]\x1B[0m"
+                    s = (
+                        f"\x1b[32m[+|{el:.2f}]\x1B[0m"
+                        if is_correct
+                        else f"\x1B[31m[-|{el:.2f}]\x1B[0m"
+                    )
                     logging.debug(f"{s} {ql:<20} mapped to {rl:<20}")
 
         # calculations on the total number of correct/incorrect/missing links
@@ -279,7 +283,12 @@ class Matching:
         }
 
     def display_matching_costs(
-        self, ground_truth_obs_key: str = None, display_mapped_pairs: bool = True
+        self,
+        ground_truth_obs_key: str = None,
+        display_mapped_pairs: bool = True,
+        show_all_labels: bool = False,
+        width: float = -1,
+        height: float = -1,
     ) -> None:
         """
         Displays matching cost matrix between query and reference datasets.
@@ -290,6 +299,12 @@ class Matching:
             If available, ground truth '.obs' key for the query dataset
         display_mapped_pairs: bool = False
             Whether to indicate on the cost matrix which pairs ended up paired
+        show_all_labels: bool = False
+            Whether to show all labels (types) in the x and y axes
+        width: float = -1
+            If positive, figure width
+        height: float = -1
+            If positive, figure height
         """
         title = (
             f"{self.q_name} to {self.ref_name} matching cost"
@@ -320,7 +335,6 @@ class Matching:
             y=q_labels,
             color_continuous_scale="Agsunset",
         )
-        fig.update_xaxes(tickangle=-45)
 
         # add markers indicating which pairs are mapped in the end
         if display_mapped_pairs:
@@ -355,6 +369,18 @@ class Matching:
                     hovertemplate="%{y} -> %{x}",
                 )
             )
+
+        # final tweaks
+        fig.update_xaxes(tickangle=-90)
+
+        if width > 0:
+            fig.update_layout(width=width)
+        if height > 0:
+            fig.update_layout(height=height)
+        if show_all_labels:
+            fig.update_yaxes(dtick=1)
+            fig.update_xaxes(dtick=1)
+
         fig.show()
 
     def eval_link(self, q_label: str, ref_label: str) -> float:
@@ -397,10 +423,6 @@ class Matching:
 
         q_idx = min(isect)
         ref_idx = ref_anc.index(q_anc[q_idx])
-
-        logging.debug(
-            f"{q_label} | {q_sim[q_idx]:.2f} > {q_anc[q_idx]} < {ref_sim[ref_idx]:.2f} | {ref_label}"
-        )
 
         return min(q_sim[q_idx], ref_sim[ref_idx])
 
