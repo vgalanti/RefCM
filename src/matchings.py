@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from anndata import AnnData
@@ -67,6 +68,13 @@ class Matching:
         )
         self.ref_ktl: dict[int, str] = q.uns["refcm_ref_ktl"].copy()
         self.ref_labels: List[str] = [*self.ref_ktl.values()]
+
+        # create type tree
+        with open(config.TREE_FILE, "r") as f:
+            tt = json.load(f)
+        self.tree = {}
+        for p, c, s in tt:
+            self.tree[c.lower().strip()] = (p.lower().strip(), s)
 
     def eval(self, ground_truth_obs_key: str) -> Dict:
         """
@@ -323,7 +331,13 @@ class Matching:
                         # change the color to indicate whether it is correct or not,
                         # only possible if ground_truth_obs_key was given
                         if ground_truth_obs_key is not None:
-                            c = "green" if q_labels[i] == self.ref_ktl[j] else "red"
+                            c = (
+                                "green"
+                                if self.eval_link(q_labels[i], self.ref_ktl[j])
+                                >= TYPE_EQUALITY_STRICTNESS
+                                else "red"
+                            )
+
                         else:
                             c = "blue"
 
@@ -358,11 +372,11 @@ class Matching:
         Returns
         -------
         float:
-            Number between 0 and 1 that indicates how equal the labels are. This is 1 if and only if this is an exact match, for example if the labels match up to upper/lower-case and whitespaces differences, or it's just an equivalent choice from the authors (i.e. "Treg" vs "Regulatory T cell"). 0 indicates that the labels are completely different, and it's your goal to find a good measure of the "in-between"!
-
-        NOTE
-        ----
-        To see how changes affect the evaluation, check for uses of the function in `eval` above!
+            Number between 0 and 1 that indicates how equal the labels are.
+            1 if and only if this is an exact match, e.g. if the labels match
+            up to upper/lower-case and whitespaces differences, or it's just an
+            equivalent choice from the authors (i.e. "Treg" vs "Regulatory T cell").
+            0 indicates that the labels are completely different.
         """
         # make inputs lowercase, and remove whitespaces
         q_label = q_label.lower().strip()
@@ -372,8 +386,30 @@ class Matching:
         if q_label == ref_label:
             return 1.0
 
-        # check if they are equal up to a naming convention/choice
+        # otherwise, go through ancestors to check closest parent
+        q_anc, q_sim = self._tree_ancestors(q_label)
+        ref_anc, ref_sim = self._tree_ancestors(ref_label)
 
-        # (challenge problem) get a informative value for the "in-between"
+        isect = [i for i, v in enumerate(q_anc) if v in ref_anc]
 
-        return 0
+        if len(isect) == 0:
+            return 0
+
+        q_idx = min(isect)
+        ref_idx = ref_anc.index(q_anc[q_idx])
+
+        logging.debug(
+            f"{q_label} | {q_sim[q_idx]:.2f} > {q_anc[q_idx]} < {ref_sim[ref_idx]:.2f} | {ref_label}"
+        )
+
+        return min(q_sim[q_idx], ref_sim[ref_idx])
+
+    def _tree_ancestors(self, t: str) -> Tuple[List[str], List[float]]:
+        ancestors = [t]
+        sim = [1.0]
+        while self.tree.get(t) is not None:
+            t, v = self.tree.get(t)
+            ancestors.append(t)
+            sim.append(v)
+
+        return ancestors, sim
