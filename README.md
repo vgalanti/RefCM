@@ -62,13 +62,6 @@ Provided a ground-truth `.obs` field, the matching's performance can be evaluate
 ```
 
 
-For convenience, we have also included a CLI tool.
-
-```shell
-    refcm-cli --usage
-```
-
-
 ### Jupyter Notebook Examples <a name="notebook-examples"></a>
 
 We have put together some examples in jupyter notebooks under [/experiments](./experiments/) so that you can start utilizing RefCM right away!
