@@ -70,12 +70,11 @@ class Matching:
         self.ref_labels: List[str] = [*self.ref_ktl.values()]
 
         # create type tree
-        self.tree = {}
         self.strictness = TYPE_EQUALITY_STRICTNESS
+
         with open(config.TREE_FILE, "r") as f:
             tt = json.load(f)
-        for p, c, s in tt:
-            self.tree[c.lower().strip()] = (p.lower().strip(), s)
+        self.tree = {c.lower().strip(): (p.lower().strip(), s) for p, c, s in tt}
 
     def eval(self, ground_truth_obs_key: str) -> Dict:
         """
