@@ -70,9 +70,10 @@ class Matching:
         self.ref_labels: List[str] = [*self.ref_ktl.values()]
 
         # create type tree
+        self.tree = {}
+        self.strictness = TYPE_EQUALITY_STRICTNESS
         with open(config.TREE_FILE, "r") as f:
             tt = json.load(f)
-        self.tree = {}
         for p, c, s in tt:
             self.tree[c.lower().strip()] = (p.lower().strip(), s)
 
@@ -113,7 +114,7 @@ class Matching:
 
                 if self.m[i, j] == 1:
                     el = self.eval_link(ql, rl)
-                    is_correct = el >= TYPE_EQUALITY_STRICTNESS
+                    is_correct = el >= self.strictness
 
                     self.ms[i, j] = CORRECT if is_correct else INCORRECT
                     s = (
@@ -287,6 +288,8 @@ class Matching:
         ground_truth_obs_key: str = None,
         display_mapped_pairs: bool = True,
         show_all_labels: bool = False,
+        show_values: bool = False,
+        angle_x_labels: bool = False,
         width: float = -1,
         height: float = -1,
     ) -> None:
@@ -301,6 +304,10 @@ class Matching:
             Whether to indicate on the cost matrix which pairs ended up paired
         show_all_labels: bool = False
             Whether to show all labels (types) in the x and y axes
+        show_values: bool = False
+            Whether to show the values (without hovering)
+        angle_x_labels: bool = False
+            Whether to angle the x labels at 45 deg instead of 90 deg
         width: float = -1
             If positive, figure width
         height: float = -1
@@ -335,6 +342,20 @@ class Matching:
             y=q_labels,
             color_continuous_scale="Agsunset",
         )
+        fig.update_xaxes(tickangle=-90)
+
+        if show_values:
+            for i in range(self.q_n):
+                for j in range(self.r_n):
+                    fig.add_annotation(
+                        x=j,
+                        y=i,
+                        text=f"{self.m_costs[i][j]:.2f}",
+                        showarrow=False,
+                        # bgcolor="white",
+                        # opacity=0.2,
+                    )
+            fig.update_annotations(font=dict(color="white"))  # size=30
 
         # add markers indicating which pairs are mapped in the end
         if display_mapped_pairs:
@@ -348,7 +369,7 @@ class Matching:
                             c = (
                                 "green"
                                 if self.eval_link(q_labels[i], self.ref_ktl[j])
-                                >= TYPE_EQUALITY_STRICTNESS
+                                >= self.strictness
                                 else "red"
                             )
 
@@ -371,8 +392,8 @@ class Matching:
             )
 
         # final tweaks
-        fig.update_xaxes(tickangle=-90)
-
+        if angle_x_labels:
+            fig.update_xaxes(tickangle=-45)
         if width > 0:
             fig.update_layout(width=width)
         if height > 0:
@@ -435,3 +456,8 @@ class Matching:
             sim.append(v)
 
         return ancestors, sim
+
+    def set_type_equality_strictness(self, t: float) -> None:
+        if t < 0 or t > 1:
+            logging.error(f"Type strictness must be between 0 and 1.")
+        self.strictness = t

@@ -3,7 +3,10 @@
 
 <center> <h1>RefCM: Reference Cluster-Mapping</h1> </center>
 
+
 RefCM is an automated tool enabling cell-type annotation across different scRNA-seq datasets. The model bases itself on the geometric properties of optimal transport to map cell-type clusters across tissues, sequencing methods, and species.
+
+![overview](/vignettes/fig1.png)
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)

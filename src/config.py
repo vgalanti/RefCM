@@ -1,8 +1,8 @@
 import logging
 
-LOG_FILE = "log.log"
-TREE_FILE = "typetree.json"
-CACHE = "cache.json"
+LOG_FILE = "../src/log.log"
+TREE_FILE = "../src/typetree.json"
+CACHE = "../src/cache.json"
 
 lg = logging.getLogger(__name__)
 
