@@ -2,7 +2,6 @@ import os
 import ot
 import json
 import scipy
-import scipy.sparse
 
 import pulp as pl
 import numpy as np
@@ -10,6 +9,7 @@ import scanpy as sc
 
 from tqdm import tqdm
 from typing import Union, List, Callable, Tuple, Dict, TypedDict, TypeAlias
+from hashlib import sha256
 from anndata import AnnData
 from matchings import Matching
 from embeddings import Embedder, HVGEmbedder
@@ -25,23 +25,17 @@ log = logging.getLogger(__name__)
 # ignore pandas FutureWarnings originating from Scanpy's HVG method
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-# constants
-MAX_CLUSTER_SIZE = 6000
-MAX_HVG_SIZE = 30000
-
 
 # Caching of compute-expensive WS costs
 class CachedCost(TypedDict):
-    # query and reference names
-    q_id: str
-    ref_id: str
+    # relevant uids
+    q_uid: str
+    ref_uid: str
+    embed_uid: str
 
-    # parameters used in computation of WS cost
-    target_sum: int | None
-    n_top_genes: int
+    # additional WS compute param
+    pdist: str
     num_iter_max: int
-    max_hvg_size: int | None
-    max_cluster_size: int | None
 
     # the computed ws costs
     costs: List[List[float]]
@@ -359,7 +353,7 @@ class RefCM:
         q_id, ref_id = q.uns["_id"], ref.uns["_id"]
 
         if self._cache_load:
-            c = self._cache_get(q_id, ref_id)
+            c = self._cache_get(q, ref)
             if c is not None:
                 log.debug(f"Using costs for {q_id}->{ref_id} found in cache.")
                 return np.array(c)
@@ -368,7 +362,7 @@ class RefCM:
         c = self._ws(q, ref)
 
         if self._cache_save:
-            self._update_cache(q_id, ref_id, c.tolist())
+            self._update_cache(q, ref, c.tolist())
 
         return c
 
@@ -498,16 +492,16 @@ class RefCM:
             with open(self._cache_fpath, "r") as f:
                 return json.load(f)
 
-    def _cache_get(self, q_id: str, ref_id: str) -> List[List[float]] | None:
+    def _cache_get(self, q: AnnData, ref: AnnData) -> List[List[float]] | None:
         """
         Retrieves mapping costs from cache, if available.
 
         Parameters
         ----------
-        q_id: str
-            Query id (name).
-        ref_id: str
-            Reference id (name).
+        q: AnnData
+            Query dataset.
+        ref: AnnData
+            Reference dataset.
 
         Returns
         -------
@@ -515,51 +509,71 @@ class RefCM:
             The corresponding mapping cost, if it exists.
         """
 
-        pred = lambda c: (
-            c["q_id"] == q_id
-            and c["ref_id"] == ref_id
+        q_uid = sha256(q.X.data.tobytes()).hexdigest()
+        ref_uid = sha256(ref.X.data.tobytes()).hexdigest()
+
+        # since WS costs are symmetric, we only save one entry
+        # for (q, ref) and (ref, q); whichever has "lower" hash
+        # alphabetically is q, and we transpose the costs if needed
+        if flip := q_uid > ref_uid:
+            temp = q_uid
+            q_uid = ref_uid
+            ref_uid = temp
+
+        find = lambda c: (
+            c["q_uid"] == q_uid
+            and c["ref_uid"] == ref_uid
+            and c["embed_uid"] == self._embedder.uid
+            and c["pdist"] == self._pdist
             and c["num_iter_max"] == self._num_iter_max
-            and c["target_sum"] == self._target_sum
-            and c["n_top_genes"] == self._n_top_genes
-            and c["max_hvg_size"] == self._max_hvg_size
-            and c["max_cluster_size"] == self._max_cluster_size
         )
-        result = list(filter(pred, self._cache))
+        result = list(filter(find, self._cache))
+
+        if len(result) == 0:
+            return None
 
         if len(result) > 1:
-            log.error(f"Corrupted Cache: conflicting entries for {q_id}->{ref_id}")
+            log.error(f"Corrupted Cache: conflicting entries found.")
             raise Exception(f"Corrupted Cache {self._cache_fpath}.")
 
-        return result[0]["costs"] if len(result) == 1 else None
+        r = result[0]
+        return r["costs"] if not flip else np.array(r["costs"]).T.tolist()
 
-    def _update_cache(self, q_id: str, ref_id: str, mcosts: List[List[float]]) -> None:
+    def _update_cache(
+        self, q: AnnData, ref: AnnData, mcosts: List[List[float]]
+    ) -> None:
         """
         Updates the mapping costs cache file.
 
         Parameters
         ----------
-        q_id: str
-            Query id (name) for saving.
-        ref_id: str
-            Reference id (name) for saving.
+        q: AnnData
+            Query for saving.
+        ref: AnnData
+            Reference for saving.
         mcosts: List[List[float]]
             Pair mapping costs to add to the cache.
         """
+        q_uid = sha256(q.X.data.tobytes()).hexdigest()
+        ref_uid = sha256(ref.X.data.tobytes()).hexdigest()
 
-        if self._cache_get(q_id, ref_id) is not None:
+        if flip := q_uid > ref_uid:
+            temp = q_uid
+            q_uid = ref_uid
+            ref_uid = temp
+
+        if self._cache_get(q, ref) is not None:
             return
 
-        log.debug(f"Saving {q_id}->{ref_id} mapping costs to {self._cache_fpath}.")
+        log.debug(f"Saving mapping costs to {self._cache_fpath}.")
         self._cache.append(
             {
-                "q_id": q_id,
-                "ref_id": ref_id,
-                "target_sum": self._target_sum,
-                "n_top_genes": self._n_top_genes,
+                "q_uid": q_uid,
+                "ref_uid": ref_uid,
+                "embed_uid": self._embedder.uid,
+                "pdist": self._pdist,
                 "num_iter_max": self._num_iter_max,
-                "max_hvg_size": self._max_hvg_size,
-                "max_cluster_size": self._max_cluster_size,
-                "costs": mcosts,
+                "costs": mcosts if not flip else np.array(mcosts).T.tolist(),
             }
         )
 

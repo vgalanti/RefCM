@@ -1,11 +1,13 @@
 import abc
-import logging
+import json
 import scipy
+import logging
 import numpy as np
 import pandas as pd
 import scanpy as sc
 
 from typing import List, Literal
+from hashlib import sha256
 from anndata import AnnData
 from sklearn.decomposition import PCA, FastICA, NMF
 
@@ -26,7 +28,7 @@ class Embedder:
     refcm-compatible embedding.
     """
 
-    id_: str
+    uid: str
 
     def __init__(self) -> None:
         pass
@@ -68,6 +70,15 @@ class HVGEmbedder(Embedder):
         self._target_sum: int | None = target_sum
         self._max_cluster_size: int | None = max_cluster_size
         self._max_hvg_size: int | None = max_hvg_size
+
+        uid = {
+            "n_top_genes": self._n_top_genes,
+            "target_sum": self._target_sum,
+            "max_cluster_size": self._max_cluster_size,
+            "max_hvg_size": self._max_hvg_size,
+        }
+        uid = json.dumps(uid).encode("utf-8")
+        self.uid = sha256(uid).hexdigest()
 
     def fit(self, q: AnnData, ref: AnnData) -> None:
         """
@@ -215,6 +226,15 @@ class ScikitEmbedder(Embedder):
         self._n_components: int = n_components
         self._log_norm: bool = log_norm
         self._max_cluster_size: int | None = max_cluster_size
+
+        uid = {
+            "method": self.mt,
+            "n_components": self._n_components,
+            "log_norm": self._log_norm,
+            "max_cluster_size": self._max_cluster_size,
+        }
+        uid = json.dumps(uid).encode("utf-8")
+        self.uid = sha256(uid).hexdigest()
 
     def fit(self, q: AnnData, ref: AnnData) -> None:
         """
