@@ -43,9 +43,11 @@ class CachedCost(TypedDict):
 
 # TODO check if this requires log-normalized data
 def dflt_clustering_func(adata: AnnData) -> AnnData:
+    adata.X = np.log1p(adata.X)
     sc.tl.pca(adata)
     sc.pp.neighbors(adata)
-    sc.tl.leiden(adata)  # , key_added="refcm_clusters"
+    sc.tl.leiden(adata, resolution=1)  # , key_added="refcm_clusters"
+    adata.X = np.expm1(adata.X)
     return adata
 
 
@@ -151,6 +153,8 @@ class RefCM:
             The query dataset along with its new annotations under 'obs'.
         """
         # annotate the dataset, creating new "obs" fields where necessary
+        q.uns["refcm_uid"] = q_id  # sha256(q.X.data.tobytes()).hexdigest()
+        ref.uns["refcm_uid"] = ref_id  # sha256(ref.X.data.tobytes()).hexdigest()
 
         # if clusters are not pre-computed, compute them given the input function
         if q_key_clusters is None:
@@ -163,6 +167,7 @@ class RefCM:
 
                 q_clustering_func = dflt_clustering_func
                 q_key_clusters = "leiden"
+                self._max_merges = 4  # TODO check this
 
             else:
                 log.info("Using input clustering function")
@@ -509,8 +514,8 @@ class RefCM:
             The corresponding mapping cost, if it exists.
         """
 
-        q_uid = sha256(q.X.data.tobytes()).hexdigest()
-        ref_uid = sha256(ref.X.data.tobytes()).hexdigest()
+        q_uid = q.uns["refcm_uid"]
+        ref_uid = ref.uns["refcm_uid"]
 
         # since WS costs are symmetric, we only save one entry
         # for (q, ref) and (ref, q); whichever has "lower" hash
@@ -554,8 +559,8 @@ class RefCM:
         mcosts: List[List[float]]
             Pair mapping costs to add to the cache.
         """
-        q_uid = sha256(q.X.data.tobytes()).hexdigest()
-        ref_uid = sha256(ref.X.data.tobytes()).hexdigest()
+        q_uid = q.uns["refcm_uid"]
+        ref_uid = ref.uns["refcm_uid"]
 
         if flip := q_uid > ref_uid:
             temp = q_uid

@@ -204,7 +204,7 @@ class ScikitEmbedder(Embedder):
         Creates a PCA, ICA, or NMF embedder using Scikit-Learn's implementations.
 
         n_components: int = 100
-            Number of ICA components to choose.
+            Number of components to choose.
         log_norm: bool = True
             Whether to log-normalize the raw counts.
         max_cluster_size: int | None = MAX_CLUSTER_SIZE
