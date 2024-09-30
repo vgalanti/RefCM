@@ -12,11 +12,11 @@ import numpy as np
 import scanpy as sc
 import logging
 import seaborn as sns
-import rpy2.robjects as ro
+# import rpy2.robjects as ro
 import plotly.express as px
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-import rpy2.robjects as ro
+# import rpy2.robjects as ro
 
 
 from typing import List, Dict, Tuple, TypedDict, TypeAlias, NamedTuple
@@ -24,7 +24,7 @@ from anndata import AnnData
 from itertools import product
 from collections import defaultdict
 from scipy.sparse import issparse
-from rpy2.robjects import pandas2ri
+# from rpy2.robjects import pandas2ri
 from plotly.subplots import make_subplots
 
 
@@ -36,7 +36,7 @@ from refcm import RefCM
 from sklearn.svm import LinearSVC
 
 # config
-pandas2ri.activate()
+# pandas2ri.activate()
 scvi.settings.seed = 0
 log = logging.getLogger(__name__)
 torch.set_float32_matmul_precision("high")
@@ -343,7 +343,7 @@ class SCANVI(BenchModel):
         scanvi_query.train(
             max_epochs=100,
             plan_kwargs={"weight_decay": 0.0},
-            check_val_every_n_epoch=10,
+            check_val_every_n_epoch=10
         )
 
         q.obs[self.rm_id] = scanvi_query.predict()
@@ -628,6 +628,10 @@ def benchmark_pancreas() -> None:
     for qid, rid in product(PANCREAS, PANCREAS):
         q = sc.read_h5ad(f"../data/{qid}.h5ad")
         ref = sc.read_h5ad(f"../data/{rid}.h5ad")
+        
+        # TODO remove this, for scanvi
+        if set(q.obs.celltype.unique()) != set(ref.obs.celltype.unique()):
+            continue
 
         # RefCM
         # m = RCM()
@@ -638,7 +642,7 @@ def benchmark_pancreas() -> None:
         # add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
         print(f"{qid} | {rid}")
         # benchmarked models
-        models = [Seurat]  # Seurat, SVM]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [SCANVI]  # Seurat, SVM]  # SCANVI TODO [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
@@ -647,7 +651,8 @@ def benchmark_pancreas() -> None:
             perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
             add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
 
-    save_benchmarks(benchmarks)
+    # save_benchmarks(benchmarks)
+    return benchmarks
 
 
 # Results needed for fig2b
@@ -670,18 +675,18 @@ def benchmark_brain_monkey() -> None:
         q.obs.leiden = q.obs.leiden.astype(str)
 
         # RefCM
-        m = RCM()
-        m.setref(ref, KEYS[rid])
-        m.annotate(q, KEYS[qid], "leiden", discovery_threshold=0)
+        # m = RCM()
+        # m.setref(ref, KEYS[rid])
+        # m.annotate(q, KEYS[qid], "leiden", discovery_threshold=0)
 
-        perf = Benchmark(*m.eval_(True), q.obs[m.rcm_id].tolist())
-        add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
+        # perf = Benchmark(*m.eval_(True), q.obs[m.rcm_id].tolist())
+        # add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
 
-        perf = Benchmark(*m.eval_(False), q.obs[m.rm_id].tolist())
-        add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
+        # perf = Benchmark(*m.eval_(False), q.obs[m.rm_id].tolist())
+        # add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
 
         # benchmarked models
-        models = [CellTypist, SVM, Seurat]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [SCANVI]#CellTypist, SVM, Seurat]  # SCANVI TODO [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
@@ -693,7 +698,7 @@ def benchmark_brain_monkey() -> None:
             perf = Benchmark(*m.eval_(False), q.obs[m.rm_id].tolist())
             add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
 
-    save_benchmarks(benchmarks)
+        save_benchmarks(benchmarks)
 
 
 # Results needed for fig 2c
