@@ -222,7 +222,7 @@ class RefCM:
         for i in range(len(clusters)):
             mapped = np.argmax(m[i] == 1)  # find first occurence of a mapping
             if m[i][mapped] == 0:  # meaning that it does not get mapped anywhere
-                label = None
+                label = "novel"
             else:
                 label = ref_ktl[mapped]
             q.obs.loc[q.obs["refcm_clusters"] == i, "refcm_annot"] = label

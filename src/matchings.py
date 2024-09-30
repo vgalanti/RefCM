@@ -291,7 +291,7 @@ class Matching:
         angle_x_labels: bool = False,
         width: float = -1,
         height: float = -1,
-    ) -> None:
+    ):
         """
         Displays matching cost matrix between query and reference datasets.
 
@@ -401,7 +401,7 @@ class Matching:
             fig.update_yaxes(dtick=1)
             fig.update_xaxes(dtick=1)
 
-        fig.show()
+        return fig
 
     def eval_link(self, q_label: str, ref_label: str) -> float:
         """
