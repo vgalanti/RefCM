@@ -41,16 +41,6 @@ class CachedCost(TypedDict):
     costs: List[List[float]]
 
 
-# TODO check if this requires log-normalized data
-def dflt_clustering_func(adata: AnnData) -> AnnData:
-    adata.X = np.log1p(adata.X)
-    sc.tl.pca(adata)
-    sc.pp.neighbors(adata)
-    sc.tl.leiden(adata, resolution=1)  # , key_added="refcm_clusters"
-    adata.X = np.expm1(adata.X)
-    return adata
-
-
 class RefCM:
     def __init__(
         self,
@@ -115,147 +105,110 @@ class RefCM:
         self._cache_save: bool = cache_save
         self._cache: List[CachedCost] = self._load_cache()
 
+    def setref(self, ref: AnnData, ref_id: AnnData, ref_key: str) -> None:
+        """
+        Sets the reference dataset to be used during annotation.
+
+        Parameters
+        ----------
+        ref: AnnData
+            Reference dataset to to use.
+        ref_id: str
+            Reference id (name) for saving.
+        ref_key: str
+            'obs' key in the reference dataset where ground truth labels lie.
+        """
+        if ref_key not in ref.obs.columns:
+            log.error(f"Reference .obs does not contain {ref_key}. Exiting.")
+            return
+
+        self.ref = ref
+        self.ref_id = ref_id
+        self.ref_key = ref_key
+
+        # label-to-key and and key-to-label maps
+        self.ref_ltk, self.ref_ktl = {}, {}
+
+        labels = np.sort(np.unique(self.ref.obs[self.ref_key]))
+        for j, l in enumerate(labels):
+            self.ref_ltk[l], self.ref_ktl[j] = j, l
+
+        self.ref_nc = len(labels)
+        self.ref_labels = labels
+
     def annotate(
         self,
         q: AnnData,
         q_id: str,
-        ref: AnnData | List[AnnData],
-        ref_id: str | List[str],
-        ref_key_labels: str | List[str],
-        q_key_clusters: str | None = None,
-        q_clustering_func: str | Callable[[AnnData], AnnData] = "leiden",
+        q_key: str,
     ) -> Matching:
         """
-        Annotates a query dataset utilizing reference dataset(s)
+        Annotates a query dataset.
 
         Parameters
         ----------
         q: AnnData
-            Query data to annotate
+            Query data to annotate/
         q_id: str
             Query id (name) for saving.
-        ref: AnnData | List[AnnData]
-            Reference datasets to utilize for annotation
-        ref_id: str | List[str]
-            Reference ids (names) for saving.
-        ref_key_labels: str | List[str]
-            'obs' keys in the reference datasets corresponding to their cell type labels
-        q_key_clusters: str | None = None
-            'obs' key corresponding to the query's current clustering
-        q_clustering_func: str | Callable[[AnnData], AnnData] = "leiden"
-            In case the query's clusters have not yet been computed, the clustering
-            algorithm to apply.
-            Resulting clustering should result in adata.obs[q_key_clusters]
+        q_key: str
+            'obs' key containing query's current clustering
 
         Returns
         -------
         Matching
             The query dataset along with its new annotations under 'obs'.
         """
-        # annotate the dataset, creating new "obs" fields where necessary
-        q.uns["refcm_uid"] = q_id  # sha256(q.X.data.tobytes()).hexdigest()
-        ref.uns["refcm_uid"] = ref_id  # sha256(ref.X.data.tobytes()).hexdigest()
 
-        # if clusters are not pre-computed, compute them given the input function
-        if q_key_clusters is None:
-            if type(q_clustering_func) == str:
-                if q_clustering_func != "leiden":
-                    log.warning("Clustering other than default not yet supported")
-                    log.warning("Defaulting to Leiden clustering")
-                else:
-                    log.info("Using default Leiden clustering")
-
-                q_clustering_func = dflt_clustering_func
-                q_key_clusters = "leiden"
-                self._max_merges = 4  # TODO check this
-
-            else:
-                log.info("Using input clustering function")
-
-            log.info("Clustering the query dataset")
-            q_clustering_func(q)
-
-        # check that the given key to the clusterings exists
-        if q_key_clusters not in q.obs.columns:
-            log.error("Key mapping to clusters invalid. Exiting.")
+        if not self.ref:
+            log.error("Set reference before annotating. Exiting.")
             return
 
-        # add temporary metadata to the references for downstream tasks
-        if not isinstance(ref, list):
-            ref = [ref]
-            ref_key_labels = [ref_key_labels]
-            ref_id = [ref_id]
+        # check that the given key to the clusterings exists
+        if q_key not in q.obs.columns:
+            log.error(f"Query .obs does not contain {q_key}. Exiting.")
+            return
 
-        for i, r in enumerate(ref):
-
-            if ref_key_labels[i] not in r.obs.columns:
-                log.error(f"Reference {ref_id[i]}'s .obs cluster key invalid.")
-                return
-
-            ltk, ktl = {}, {}
-            r.uns["_ck"] = ref_key_labels[i]  # cluster key
-            clusters = np.sort(np.unique(r.obs[r.uns["_ck"]]))
-            for j, l in enumerate(clusters):
-                ltk[l], ktl[j] = j, l
-
-            r.uns["_ltk"] = ltk  # labels-to-clusters
-            r.uns["_ktl"] = ktl  # clusters-to-labels
-            r.uns["_nc"] = len(clusters)  # number of clusters
-            r.uns["_id"] = ref_id[i]  # name id
+        self.q = q
+        self.q_id = q_id
+        self.q_key = q_key
 
         # create new refcm cluster and annotation observations for query anndata
-        q.obs["refcm_clusters"] = -1
-        q.obs["refcm_annot"] = ""
+        self.q.obs["refcm_clusters"] = -1
+        self.q.obs["refcm_annot"] = ""
 
-        clusters = np.sort(np.unique(q.obs[q_key_clusters]))
+        clusters = np.sort(np.unique(self.q.obs[self.q_key]))
         for j, l in enumerate(clusters):
-            q.obs.loc[q.obs[q_key_clusters] == l, "refcm_clusters"] = j
+            self.q.obs.loc[self.q.obs[self.q_key] == l, "refcm_clusters"] = j
 
-        q.uns["_nc"] = len(clusters)
-        q.uns["_id"] = q_id
+        self.q_nc = len(clusters)
 
         # proceed to mapping query to reference
-        m, c, ref_ktl = self._match(q, ref)
+        m, c = self._match()
 
         # annotate based on the matching information.
         # TODO handle the ambiguous case where query is mapped to multiple reference clusters
-        for i in range(len(clusters)):
+        for i in range(self.q_nc):
             mapped = np.argmax(m[i] == 1)  # find first occurence of a mapping
             if m[i][mapped] == 0:  # meaning that it does not get mapped anywhere
                 label = "novel"
             else:
-                label = ref_ktl[mapped]
-            q.obs.loc[q.obs["refcm_clusters"] == i, "refcm_annot"] = label
+                label = self.ref_ktl[mapped]
+            self.q.obs.loc[self.q.obs["refcm_clusters"] == i, "refcm_annot"] = label
 
         # save matching information under 'uns' (i.e. unstructured data)
+        # TODO if we want to keep this or not
         q.uns["refcm_mapping"] = m
         q.uns["refcm_costs"] = c
-        q.uns["refcm_ref_ktl"] = ref_ktl
+        q.uns["refcm_ref_ktl"] = self.ref_ktl
 
-        # cleanup changes to reference datasets 'uns' during the way
-        for r in ref:
-            r.uns.pop("_ck", None)
-            r.uns.pop("_ltk", None)
-            r.uns.pop("_ktl", None)
-            r.uns.pop("_nc", None)
-            r.uns.pop("_id", None)
-
-        return Matching(q, ref, q_id, ref_id)
+        return Matching(self.q, self.ref, self.q_id, self.ref_id)
 
     def _match(
         self,
-        q: AnnData,
-        ref: List[AnnData],
     ) -> Tuple[np.ndarray, np.ndarray, dict[int, str]]:
         """
-        Matches a query Dataset to a Reference dataset(s).
-
-        Parameters
-        ----------
-        q: AnnData
-            query data to map
-        ref: List[AnnData]
-            reference dataset(s)
+        Matches a query Dataset to a reference dataset.
 
         Returns
         -------
@@ -265,16 +218,21 @@ class RefCM:
         np.ndarray
             the final query -> reference mapping cost matrix
             Shape: (n_query_clusters, n_reference_clusters)
-        dict[int, str]
-            the merged reference key-to-label correspondence
 
         NOTE
         ----
         * discovery_threshold assumes that all costs are non-positive.
         """
 
-        costs = [self._matching_cost(q, r) for r in ref]
-        cost, ref_ktl = self._merge_costs(q, ref, costs)
+        # compute matching costs
+        if self._cache_load and (c := self._cache_get()) is not None:
+            log.debug(f"Using costs for {self.q_id}->{self.ref_id} found in cache.")
+            cost = np.array(c)
+
+        else:
+            cost = self._ws()
+            if self._cache_save:
+                self._update_cache(cost.tolist())
 
         # normalize between -1 and 0
         mx, mn = cost.max(), cost.min()
@@ -284,103 +242,13 @@ class RefCM:
         if self._discovery_threshold is not None:
             c[c >= -self._discovery_threshold] = 1e2  # > 0
 
+        # perform LP matching
         m = self.lp_match(c)
-        return m, cost, ref_ktl
+        return m, cost
 
-    def _merge_costs(
-        self,
-        q: AnnData,
-        ref: List[AnnData],
-        costs: List[np.ndarray],
-    ) -> Tuple[np.ndarray, dict[int, str]]:
-        """
-        Merges the matching costs of query to multi-reference tasks and
-        establishes a merged reference key-to-label correspondence.
-
-        Parameters
-        ----------
-        q: AnnData
-            query dataset
-        ref: [AnnData]
-            reference dataset
-        costs: List[np.ndarray]
-            list of matching costs between the query set and the references
-            Shape: [ (n_query_clusters, n_reference_clusters) ]
-
-        Returns
-        -------
-        np.ndarray
-            the merged query -> reference cost matrix
-        dict[int, str]
-            the merged reference key-to-label correspondence
-        """
-        # get all available cell types across all reference datasets
-        ref_labels = sum([[*r.uns["_ktl"].values()] for r in ref], [])
-        ref_labels = np.sort(np.unique(ref_labels))
-
-        q_n_labels = q.uns["_nc"]
-        cost = np.zeros((q_n_labels, len(ref_labels)))
-        for qc in range(q_n_labels):
-            for rc, rl in enumerate(ref_labels):
-                cost[qc][rc] = np.average(
-                    [
-                        costs[i][qc][r.uns["_ltk"].get(rl)]
-                        for i, r in enumerate(ref)
-                        if r.uns["_ltk"].get(rl) is not None
-                    ]
-                )
-
-        ref_ktl = {k: v for k, v in enumerate(ref_labels)}
-        return cost, ref_ktl
-
-    def _matching_cost(self, q: AnnData, ref: AnnData) -> np.ndarray:
-        """
-        Computes the matching cost between pairs of query and reference clusters
-
-        Parameters
-        ----------
-        q: AnnData
-            query dataset
-        ref: AnnData
-            reference dataset
-
-        Returns
-        -------
-        np.ndarray
-            the query -> reference wasserstein distances
-            Shape: (n_query_clusters, n_reference_clusters)
-        """
-        # TODO build upon just WS with global geometry and
-        # prior species/measurement location/measurement tech
-        # information, either here or in the "merge costs" section
-
-        # check whether costs have already been saved
-        q_id, ref_id = q.uns["_id"], ref.uns["_id"]
-
-        if self._cache_load:
-            c = self._cache_get(q, ref)
-            if c is not None:
-                log.debug(f"Using costs for {q_id}->{ref_id} found in cache.")
-                return np.array(c)
-
-        # otherwise, compute them
-        c = self._ws(q, ref)
-
-        if self._cache_save:
-            self._update_cache(q, ref, c.tolist())
-
-        return c
-
-    def _ws(self, q: AnnData, ref: AnnData) -> np.ndarray:
+    def _ws(self) -> np.ndarray:
         """
         Computes the Wasserstein distance between pairs of query and reference clusters
-
-        Parameters
-        ----------
-        q: Dataset
-            query dataset
-        ref: Dataset
-            reference dataset
 
         Returns
         -------
@@ -395,20 +263,20 @@ class RefCM:
         unif = lambda s: np.ones(s) / s
 
         # fit the embedding to query and reference pair
-        self._embedder.fit(q, ref)
+        self._embedder.fit(self.q, self.ref)
 
         # compute wasserstein distances between cluster pairs
         log.debug("Computing Wasserstein distances.")
-        ws = np.zeros((q.uns["_nc"], ref.uns["_nc"]))
+        ws = np.zeros((self.q_nc, self.ref_nc))
 
         tqdm_bar = "|{bar:16}| [{percentage:>6.2f}% ] : {elapsed}"
-        with tqdm(total=q.uns["_nc"] * ref.uns["_nc"], bar_format=tqdm_bar) as pbar:
-            for qc in range(q.uns["_nc"]):
-                x_qc = q[q.obs["refcm_clusters"] == qc]
+        with tqdm(total=self.q_nc * self.ref_nc, bar_format=tqdm_bar) as pbar:
+            for qc in range(self.q_nc):
+                x_qc = self.q[self.q.obs["refcm_clusters"] == qc]
                 x_qc = self._embedder.embed(x_qc)
 
-                for rc in range(ref.uns["_nc"]):
-                    x_rc = ref[ref.obs[ref.uns["_ck"]] == ref.uns["_ktl"][rc]]
+                for rc in range(self.ref_nc):
+                    x_rc = self.ref[self.ref.obs[self.ref_key] == self.ref_ktl[rc]]
                     x_rc = self._embedder.embed(x_rc)
 
                     a, b = unif(len(x_qc)), unif(len(x_rc))
@@ -497,25 +365,17 @@ class RefCM:
             with open(self._cache_fpath, "r") as f:
                 return json.load(f)
 
-    def _cache_get(self, q: AnnData, ref: AnnData) -> List[List[float]] | None:
+    def _cache_get(self) -> List[List[float]] | None:
         """
         Retrieves mapping costs from cache, if available.
-
-        Parameters
-        ----------
-        q: AnnData
-            Query dataset.
-        ref: AnnData
-            Reference dataset.
 
         Returns
         -------
         List[List[float]] | None:
             The corresponding mapping cost, if it exists.
         """
-
-        q_uid = q.uns["refcm_uid"]
-        ref_uid = ref.uns["refcm_uid"]
+        q_uid = f"{self.q_id}-{self.q_key}"
+        ref_uid = f"{self.ref_id}-{self.ref_key}"
 
         # since WS costs are symmetric, we only save one entry
         # for (q, ref) and (ref, q); whichever has "lower" hash
@@ -544,9 +404,7 @@ class RefCM:
         r = result[0]
         return r["costs"] if not flip else np.array(r["costs"]).T.tolist()
 
-    def _update_cache(
-        self, q: AnnData, ref: AnnData, mcosts: List[List[float]]
-    ) -> None:
+    def _update_cache(self, mcosts: List[List[float]]) -> None:
         """
         Updates the mapping costs cache file.
 
@@ -559,15 +417,15 @@ class RefCM:
         mcosts: List[List[float]]
             Pair mapping costs to add to the cache.
         """
-        q_uid = q.uns["refcm_uid"]
-        ref_uid = ref.uns["refcm_uid"]
+        q_uid = f"{self.q_id}-{self.q_key}"
+        ref_uid = f"{self.ref_id}-{self.ref_key}"
 
         if flip := q_uid > ref_uid:
             temp = q_uid
             q_uid = ref_uid
             ref_uid = temp
 
-        if self._cache_get(q, ref) is not None:
+        if self._cache_get() is not None:
             return
 
         log.debug(f"Saving mapping costs to {self._cache_fpath}.")

@@ -12,10 +12,12 @@ import numpy as np
 import scanpy as sc
 import logging
 import seaborn as sns
+
 # import rpy2.robjects as ro
 import plotly.express as px
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+
 # import rpy2.robjects as ro
 
 
@@ -24,6 +26,7 @@ from anndata import AnnData
 from itertools import product
 from collections import defaultdict
 from scipy.sparse import issparse
+
 # from rpy2.robjects import pandas2ri
 from plotly.subplots import make_subplots
 
@@ -221,8 +224,9 @@ class RCM(BenchModel):
         if self.q_mclusters is not None:
 
             t_start = time.perf_counter()
-            self.model = RefCM(cache_load=False, cache_save=False, **kwargs)
-            self.model.annotate(self.q, "q", self.ref, "ref", self.ref_key, q_mclusters)
+            self.model = RefCM(**kwargs)
+            self.model.setref(self.ref, "ref", self.ref_key)
+            self.model.annotate(self.q, "q", q_mclusters)
             t_elapsed = time.perf_counter() - t_start
 
             log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
@@ -230,8 +234,9 @@ class RCM(BenchModel):
 
         # RefCM run on true clusters
         t_start = time.perf_counter()
-        self.model = RefCM(cache_load=False, cache_save=False, **kwargs)
-        self.model.annotate(self.q, "q", self.ref, "ref", self.ref_key, q_key)
+        self.model = RefCM(**kwargs)
+        self.model.setref(self.ref, "ref", self.ref_key)
+        self.model.annotate(self.q, "q", q_key)
         t_elapsed = time.perf_counter() - t_start
 
         log.debug(f"[*] {self.rcm_id} completed: {t_elapsed/60:.1f}mins")
@@ -343,7 +348,7 @@ class SCANVI(BenchModel):
         scanvi_query.train(
             max_epochs=100,
             plan_kwargs={"weight_decay": 0.0},
-            check_val_every_n_epoch=10
+            check_val_every_n_epoch=10,
         )
 
         q.obs[self.rm_id] = scanvi_query.predict()
@@ -628,7 +633,7 @@ def benchmark_pancreas() -> None:
     for qid, rid in product(PANCREAS, PANCREAS):
         q = sc.read_h5ad(f"../data/{qid}.h5ad")
         ref = sc.read_h5ad(f"../data/{rid}.h5ad")
-        
+
         # TODO remove this, for scanvi
         if set(q.obs.celltype.unique()) != set(ref.obs.celltype.unique()):
             continue
@@ -686,7 +691,7 @@ def benchmark_brain_monkey() -> None:
         # add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
 
         # benchmarked models
-        models = [SCANVI]#CellTypist, SVM, Seurat]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [SCANVI]  # CellTypist, SVM, Seurat]  # SCANVI TODO [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
