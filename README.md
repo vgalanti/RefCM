@@ -43,7 +43,7 @@ Running RefCM on a given `query: AnnData` and `reference: AnnData` dataset pair,
     from refcm import RefCM
     
     rcm = RefCM()
-    rcm.setref(reference, 'reference', 'cluster',)
+    rcm.setref(reference, 'reference', 'cluster')
     m = rcm.annotate(query, 'query', 'cluster')
 ```
 
