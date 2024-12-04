@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from anndata import AnnData
@@ -15,6 +16,8 @@ logging = logging.getLogger(__name__)
 NOTMAPPED = -1
 INCORRECT = 0
 CORRECT = 1
+
+TYPE_EQUALITY_STRICTNESS = 1.0
 
 
 class Matching:
@@ -42,7 +45,10 @@ class Matching:
 
         NOTE
         ----
-        * ideally, ground truth labels follow the same clustering as the one that was given for matching, meaning that no mapped cluster can have samples with different ground truth values. Otherwise, it will determine "correctness" by what the most frequent value per cluster was in the ground truth column.
+        * ideally, ground truth labels follow the same clustering as the one that
+        was given for matching, meaning that no mapped cluster can have samples
+        with different ground truth values. Otherwise, it will determine "correctness"
+        by what the most frequent value per cluster was in the ground truth column.
         """
 
         if not isinstance(ref, list):
@@ -65,6 +71,13 @@ class Matching:
         )
         self.ref_ktl: dict[int, str] = q.uns["refcm_ref_ktl"].copy()
         self.ref_labels: List[str] = [*self.ref_ktl.values()]
+
+        # create type tree
+        self.strictness = TYPE_EQUALITY_STRICTNESS
+
+        with open(config.TREE_FILE, "r") as f:
+            tt = json.load(f)
+        self.tree = {c.lower().strip(): (p.lower().strip(), s) for p, c, s in tt}
 
     def eval(self, ground_truth_obs_key: str) -> Dict:
         """
@@ -102,8 +115,15 @@ class Matching:
                 rl = self.ref_ktl[j]
 
                 if self.m[i, j] == 1:
-                    self.ms[i, j] = CORRECT if ql == rl else INCORRECT
-                    s = "\x1b[32m[+]\x1B[0m" if ql == rl else "\x1B[31m[-]\x1B[0m"
+                    el = self.eval_link(ql, rl)
+                    is_correct = el >= self.strictness
+
+                    self.ms[i, j] = CORRECT if is_correct else INCORRECT
+                    s = (
+                        f"\x1b[32m[+|{el:.2f}]\x1B[0m"
+                        if is_correct
+                        else f"\x1B[31m[-|{el:.2f}]\x1B[0m"
+                    )
                     logging.debug(f"{s} {ql:<20} mapped to {rl:<20}")
 
         # calculations on the total number of correct/incorrect/missing links
@@ -266,8 +286,15 @@ class Matching:
         }
 
     def display_matching_costs(
-        self, ground_truth_obs_key: str = None, display_mapped_pairs: bool = True
-    ) -> None:
+        self,
+        ground_truth_obs_key: str = None,
+        display_mapped_pairs: bool = True,
+        show_all_labels: bool = False,
+        show_values: bool = False,
+        angle_x_labels: bool = False,
+        width: float = -1,
+        height: float = -1,
+    ):
         """
         Displays matching cost matrix between query and reference datasets.
 
@@ -277,6 +304,16 @@ class Matching:
             If available, ground truth '.obs' key for the query dataset
         display_mapped_pairs: bool = False
             Whether to indicate on the cost matrix which pairs ended up paired
+        show_all_labels: bool = False
+            Whether to show all labels (types) in the x and y axes
+        show_values: bool = False
+            Whether to show the values (without hovering)
+        angle_x_labels: bool = False
+            Whether to angle the x labels at 45 deg instead of 90 deg
+        width: float = -1
+            If positive, figure width
+        height: float = -1
+            If positive, figure height
         """
         title = (
             f"{self.q_name} to {self.ref_name} matching cost"
@@ -305,9 +342,22 @@ class Matching:
             labels=dict(y=y_label, x=x_label, color="cost"),
             x=self.ref_labels,
             y=q_labels,
-            color_continuous_scale="Agsunset",
+            color_continuous_scale=px.colors.sequential.Agsunset,
         )
-        fig.update_xaxes(tickangle=-45)
+        fig.update_xaxes(tickangle=-90)
+
+        if show_values:
+            for i in range(self.q_n):
+                for j in range(self.r_n):
+                    fig.add_annotation(
+                        x=j,
+                        y=i,
+                        text=f"{self.m_costs[i][j]:.2f}",
+                        showarrow=False,
+                        # bgcolor="white",
+                        # opacity=0.2,
+                    )
+            fig.update_annotations(font=dict(color="white"))  # size=30
 
         # add markers indicating which pairs are mapped in the end
         if display_mapped_pairs:
@@ -318,7 +368,13 @@ class Matching:
                         # change the color to indicate whether it is correct or not,
                         # only possible if ground_truth_obs_key was given
                         if ground_truth_obs_key is not None:
-                            c = "green" if q_labels[i] == self.ref_ktl[j] else "red"
+                            c = (
+                                "green"
+                                if self.eval_link(q_labels[i], self.ref_ktl[j])
+                                >= self.strictness
+                                else "red"
+                            )
+
                         else:
                             c = "blue"
 
@@ -336,64 +392,74 @@ class Matching:
                     hovertemplate="%{y} -> %{x}",
                 )
             )
-        fig.show()
 
-    def display_matching_graph(self) -> None:
-        """Display the bipartite matching graph"""
-        # TODO utilize pyviz
+        # final tweaks
+        if angle_x_labels:
+            fig.update_xaxes(tickangle=-45)
+        if width > 0:
+            fig.update_layout(width=width)
+        if height > 0:
+            fig.update_layout(height=height)
+        if show_all_labels:
+            fig.update_yaxes(dtick=1)
+            fig.update_xaxes(dtick=1)
 
-        logging.error("Deprecated")
-        return
+        return fig
 
-    # def display_sunburst(self, datasets: List[AnnData]) -> None:
-    #     """
-    #     Displays a sunburst chart comparing distribution & counts of
-    #     cell types in each dataset
+    def eval_link(self, q_label: str, ref_label: str) -> float:
+        """
+        Evaluates the matching/link between query and reference labels/types.
 
-    #     Parameters
-    #     ----------
-    #     datasets: List[AnnData]
-    #         list of datasets
-    #     """
-    #     # TODO
-    #     dfs = []
-    #     for ds in datasets:
-    #         df = pd.DataFrame({"key": ds.labels, "source": ds.name})
 
-    #         df["label"] = df.key.apply(lambda s: ds._keys_to_labels[s])
-    #         df["key:label"] = "(" + df["key"].astype("str") + ") " + df["label"]
-    #         dfs.append(df)
-    #     df = pd.concat(dfs)
+        Parameters
+        ----------
+        q_label: str
+            The query label to check for equality.
+        ref_label: str
+            The reference label to check with.
 
-    #     df2 = (
-    #         df[["source", "label"]]
-    #         .value_counts()
-    #         .reset_index()
-    #         .rename(columns={0: "count"})
-    #     )
-    #     fig = px.sunburst(df2, path=["source", "label"], values="count")
-    #     fig.show()
+        Returns
+        -------
+        float:
+            Number between 0 and 1 that indicates how equal the labels are.
+            1 if and only if this is an exact match, e.g. if the labels match
+            up to upper/lower-case and whitespaces differences, or it's just an
+            equivalent choice from the authors (i.e. "Treg" vs "Regulatory T cell").
+            0 indicates that the labels are completely different.
+        """
+        # make inputs lowercase, and remove whitespaces
+        q_label = q_label.lower().strip()
+        ref_label = ref_label.lower().strip()
 
-    # def display_count_histogram(datasets: List[AnnData]) -> None:
-    #     """
-    #     Displays a count histogram comparing distribution & counts of
-    #     cell types in each dataset
+        # check if the two are directly equal
+        if q_label == ref_label:
+            return 1.0
 
-    #     Parameters
-    #     ----------
-    #     datasets: List[AnnData]
-    #         list of datasets
-    #     """
-    #     dfs = []
-    #     for ds in datasets:
-    #         df = pd.DataFrame({"key": ds.labels, "source": ds.name})
+        # otherwise, go through ancestors to check closest parent
+        q_anc, q_sim = self._tree_ancestors(q_label)
+        ref_anc, ref_sim = self._tree_ancestors(ref_label)
 
-    #         df["label"] = df.key.apply(lambda s: ds._keys_to_labels[s])
-    #         df["key:label"] = "(" + df["key"].astype("str") + ") " + df["label"]
-    #         dfs.append(df)
-    #     df = pd.concat(dfs)
+        isect = [i for i, v in enumerate(q_anc) if v in ref_anc]
 
-    #     fig = px.histogram(
-    #         df.sort_values("label"), x="label", color="source", barmode="group"
-    #     )
-    #     fig.show()
+        if len(isect) == 0:
+            return 0
+
+        q_idx = min(isect)
+        ref_idx = ref_anc.index(q_anc[q_idx])
+
+        return min(q_sim[q_idx], ref_sim[ref_idx])
+
+    def _tree_ancestors(self, t: str) -> Tuple[List[str], List[float]]:
+        ancestors = [t]
+        sim = [1.0]
+        while self.tree.get(t) is not None:
+            t, v = self.tree.get(t)
+            ancestors.append(t)
+            sim.append(v)
+
+        return ancestors, sim
+
+    def set_type_equality_strictness(self, t: float) -> None:
+        if t < 0 or t > 1:
+            logging.error(f"Type strictness must be between 0 and 1.")
+        self.strictness = t
