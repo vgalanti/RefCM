@@ -45,7 +45,10 @@ class Matching:
 
         NOTE
         ----
-        * ideally, ground truth labels follow the same clustering as the one that was given for matching, meaning that no mapped cluster can have samples with different ground truth values. Otherwise, it will determine "correctness" by what the most frequent value per cluster was in the ground truth column.
+        * ideally, ground truth labels follow the same clustering as the one that
+        was given for matching, meaning that no mapped cluster can have samples
+        with different ground truth values. Otherwise, it will determine "correctness"
+        by what the most frequent value per cluster was in the ground truth column.
         """
 
         if not isinstance(ref, list):
@@ -339,7 +342,7 @@ class Matching:
             labels=dict(y=y_label, x=x_label, color="cost"),
             x=self.ref_labels,
             y=q_labels,
-            color_continuous_scale="Agsunset",
+            color_continuous_scale=px.colors.sequential.Agsunset,
         )
         fig.update_xaxes(tickangle=-90)
 

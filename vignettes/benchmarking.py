@@ -13,12 +13,12 @@ import scanpy as sc
 import logging
 import seaborn as sns
 
-# import rpy2.robjects as ro
+import rpy2.robjects as ro
 import plotly.express as px
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-# import rpy2.robjects as ro
+import rpy2.robjects as ro
 
 
 from typing import List, Dict, Tuple, TypedDict, TypeAlias, NamedTuple
@@ -27,7 +27,7 @@ from itertools import product
 from collections import defaultdict
 from scipy.sparse import issparse
 
-# from rpy2.robjects import pandas2ri
+from rpy2.robjects import pandas2ri
 from plotly.subplots import make_subplots
 
 
@@ -39,7 +39,7 @@ from refcm import RefCM
 from sklearn.svm import LinearSVC
 
 # config
-# pandas2ri.activate()
+pandas2ri.activate()
 scvi.settings.seed = 0
 log = logging.getLogger(__name__)
 torch.set_float32_matmul_precision("high")
@@ -160,22 +160,33 @@ class BenchModel:
         acc = correct / self.q.X.shape[0]
         return acc, cfmatrix.astype(int).tolist(), q_labels, ref_labels
 
-    # TODO for add option to normalize by row/column
+    @staticmethod
     def plot_cfmatrix(
-        self,
         cfmatrix: List[List[int]],
         q_labels: List[str],
         ref_labels: List[str],
         width=750,
         height=750,
+        norm: bool = False,
         show_nums: bool = False,
         angle_ticks: bool = True,
     ) -> None:
         """
         Plots the confusion matrix resulting from the above function.
         """
+        cfmatrix = np.array(cfmatrix)
+        zmin, zmax = cfmatrix.min(), cfmatrix.max()
+        if norm:
+            cfmatrix = cfmatrix / cfmatrix.sum(axis=1).reshape((-1, 1))
+            zmin, zmax = 0, 1
+
         fig = px.imshow(
-            cfmatrix, x=ref_labels, y=q_labels, color_continuous_scale="Blues"
+            cfmatrix,
+            x=ref_labels,
+            y=q_labels,
+            color_continuous_scale=px.colors.sequential.Agsunset[::-1],
+            zmin=zmin,
+            zmax=zmax,
         )
 
         if show_nums:
@@ -199,7 +210,7 @@ class BenchModel:
         if angle_ticks:
             fig.update_xaxes(tickangle=-45)
 
-        fig.show()
+        return fig
 
 
 class RCM(BenchModel):
@@ -224,7 +235,7 @@ class RCM(BenchModel):
         if self.q_mclusters is not None:
 
             t_start = time.perf_counter()
-            self.model = RefCM(**kwargs)
+            self.model = RefCM(cache_save=False, cache_load=False, **kwargs)
             self.model.setref(self.ref, "ref", self.ref_key)
             self.model.annotate(self.q, "q", q_mclusters)
             t_elapsed = time.perf_counter() - t_start
@@ -234,7 +245,7 @@ class RCM(BenchModel):
 
         # RefCM run on true clusters
         t_start = time.perf_counter()
-        self.model = RefCM(**kwargs)
+        self.model = RefCM(cache_save=False, cache_load=False, **kwargs)
         self.model.setref(self.ref, "ref", self.ref_key)
         self.model.annotate(self.q, "q", q_key)
         t_elapsed = time.perf_counter() - t_start
@@ -256,17 +267,17 @@ class CellTypist(BenchModel):
         self.q_mclusters = q_mclusters
 
         # sum & log1p normalization as per official documentation
-        q_sums = self.q.X.sum(axis=1).reshape((-1, 1))
-        ref_sums = self.ref.X.sum(axis=1).reshape((-1, 1))
-
-        self.q.X = np.log1p(1e4 * self.q.X / q_sums)
-        self.ref.X = np.log1p(1e4 * self.ref.X / ref_sums)
-
         if issparse(self.q.X):
             self.q.X = self.q.X.toarray()
 
         if issparse(self.ref.X):
             self.ref.X = self.ref.X.toarray()
+
+        q_sums = self.q.X.sum(axis=1).reshape((-1, 1))
+        ref_sums = self.ref.X.sum(axis=1).reshape((-1, 1))
+
+        self.q.X = np.log1p(1e4 * self.q.X / q_sums)
+        self.ref.X = np.log1p(1e4 * self.ref.X / ref_sums)
 
         # skip downsampling since dataset sizes are <1e6
         # use all intersecting genes for higher accuracy
@@ -309,13 +320,18 @@ class SCANVI(BenchModel):
         self.q_mclusters = q_mclusters
 
         # sum & log1p normalization as per official documentation
+        if issparse(self.q.X):
+            self.q.X = self.q.X.toarray()
+
+        if issparse(self.ref.X):
+            self.ref.X = self.ref.X.toarray()
+
         q_sums = self.q.X.sum(axis=1).reshape((-1, 1))
         ref_sums = self.ref.X.sum(axis=1).reshape((-1, 1))
 
         self.q.X = np.log1p(1e4 * self.q.X / q_sums)
         self.ref.X = np.log1p(1e4 * self.ref.X / ref_sums)
 
-        # TODO might need to actually use gs...
         # gs = np.intersect1d(self.q.var_names, self.ref.var_names)
 
         # model training
@@ -377,17 +393,17 @@ class SVM(BenchModel):
         self.q_mclusters = q_mclusters
 
         # sum & log1p normalization as per official documentation
-        q_sums = self.q.X.sum(axis=1).reshape((-1, 1))
-        ref_sums = self.ref.X.sum(axis=1).reshape((-1, 1))
-
-        self.q.X = np.log1p(1e4 * self.q.X / q_sums)
-        self.ref.X = np.log1p(1e4 * self.ref.X / ref_sums)
-
         if issparse(self.q.X):
             self.q.X = self.q.X.toarray()
 
         if issparse(self.ref.X):
             self.ref.X = self.ref.X.toarray()
+
+        q_sums = self.q.X.sum(axis=1).reshape((-1, 1))
+        ref_sums = self.ref.X.sum(axis=1).reshape((-1, 1))
+
+        self.q.X = np.log1p(1e4 * self.q.X / q_sums)
+        self.ref.X = np.log1p(1e4 * self.ref.X / ref_sums)
 
         # use all intersecting genes for higher accuracy
         gs = np.intersect1d(self.q.var_names, self.ref.var_names)
@@ -580,7 +596,7 @@ KEYS = (
     {p: "celltype" for p in PANCREAS}
     | {b: "labels34" for b in ALLENBRAIN}
     | {m: "celltype" for m in MONKEY}
-    | {f: "cell_type" for f in FZFISH}  # TODO check this
+    | {f: "cell_type" for f in FZFISH}
 )
 
 
@@ -634,20 +650,21 @@ def benchmark_pancreas() -> None:
         q = sc.read_h5ad(f"../data/{qid}.h5ad")
         ref = sc.read_h5ad(f"../data/{rid}.h5ad")
 
-        # TODO remove this, for scanvi
-        if set(q.obs.celltype.unique()) != set(ref.obs.celltype.unique()):
-            continue
+        # NOTE uncomment next line for SCANVI
+        # does not do well when types don't match exactly
+        # if set(q.obs.celltype.unique()) != set(ref.obs.celltype.unique()):
+        #     continue
 
         # RefCM
-        # m = RCM()
-        # m.setref(ref, KEYS[rid])
-        # m.annotate(q, KEYS[qid], None, discovery_threshold=0, pdist="euclidean")
+        m = RCM()
+        m.setref(ref, KEYS[rid])
+        m.annotate(q, KEYS[qid], None, discovery_threshold=0, pdist="euclidean")
 
-        # perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
-        # add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
-        print(f"{qid} | {rid}")
+        perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
+        add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
+
         # benchmarked models
-        models = [SCANVI]  # Seurat, SVM]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [SVM]  # Seurat, SVM]  # SCANVI [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
@@ -656,7 +673,7 @@ def benchmark_pancreas() -> None:
             perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
             add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
 
-    # save_benchmarks(benchmarks)
+    save_benchmarks(benchmarks)
     return benchmarks
 
 
@@ -691,7 +708,7 @@ def benchmark_brain_monkey() -> None:
         # add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
 
         # benchmarked models
-        models = [SCANVI]  # CellTypist, SVM, Seurat]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [SCANVI]  # CellTypist, SVM, Seurat]  # SCANVI [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
@@ -710,7 +727,10 @@ def benchmark_brain_monkey() -> None:
 def benchmark_fzfish() -> None:
     benchmarks: Benchmarks = load_benchmarks()
 
-    for qid, rid in [("frog", "zebrafish"), ("zebrafish", "frog")]:
+    for qid, rid in [
+        # ("frog", "zebrafish"),
+        ("zebrafish", "frog")
+    ]:
         q = sc.read_h5ad(f"../data/{qid}.h5ad")
         ref = sc.read_h5ad(f"../data/{rid}.h5ad")
 
@@ -722,17 +742,30 @@ def benchmark_fzfish() -> None:
         # perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
         # add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
 
+        # save_benchmarks(benchmarks)
+
         # benchmarked models
-        models = [CellTypist]  # , Seurat, SVM]  # SCANVI TODO [CIPR, ClustifyR, ]
+        models = [
+            CellTypist,
+            SVM,
+            # Seurat,
+        ]  # SCANVI [CIPR, ClustifyR, ]
         for model in models:
             m = model()
             m.setref(ref, KEYS[rid])
             m.annotate(q, KEYS[qid])
 
-            perf = Benchmark(*m.eval_(), q.obs[m.rcm_id].tolist())
+            perf = Benchmark(*m.eval_(True), q.obs[m.rcm_id].tolist())
             add_benchmark(benchmarks, m.rcm_id, qid, rid, perf)
 
-    save_benchmarks(benchmarks)
+            print(f"{m.rcm_id}: {perf.acc:.3f}")
+
+            perf = Benchmark(*m.eval_(False), q.obs[m.rm_id].tolist())
+            add_benchmark(benchmarks, m.rm_id, qid, rid, perf)
+
+            print(f"{m.rm_id}: {perf.acc:.3f}")
+
+            save_benchmarks(benchmarks)
 
 
 def plot_pancreas_perf(

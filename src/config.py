@@ -4,7 +4,7 @@ LOG_FILE = "../src/log.log"
 TREE_FILE = "../src/typetree.json"
 CACHE = "../src/cache.json"
 
-lg = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def start_logging(console_level: int = logging.INFO) -> None:

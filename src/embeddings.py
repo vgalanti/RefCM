@@ -17,11 +17,6 @@ MAX_CLUSTER_SIZE = 6000
 MAX_HVG_SIZE = 30000
 MAX_PCA_SIZE = 50000
 
-# TODO add an Embedding field into the cache to account for these new embedding methods
-# TODO add the marker gene options
-# TODO VAE
-# TODO scGCN
-
 
 class Embedder:
     """

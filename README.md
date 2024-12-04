@@ -6,7 +6,7 @@
 
 RefCM is an automated tool enabling cell-type annotation across different scRNA-seq datasets. The model bases itself on the geometric properties of optimal transport to map cell-type clusters across tissues, sequencing methods, and species.
 
-![overview](/vignettes/fig1.png)
+![overview](/vignettes/overview.jpeg)
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -43,7 +43,8 @@ Running RefCM on a given `query: AnnData` and `reference: AnnData` dataset pair,
     from refcm import RefCM
     
     rcm = RefCM()
-    m = rcm.annotate(query, 'query', reference, 'reference', 'cluster', 'cluster')
+    rcm.setref(reference, 'reference', 'cluster',)
+    m = rcm.annotate(query, 'query', 'cluster')
 ```
 
 The resulting annotations are written out to the `.obs['refcm_annot']` field in the query's `AnnData` object, leaving the remaining fields unchanged.
@@ -64,6 +65,6 @@ Provided a ground-truth `.obs` field, the matching's performance can be evaluate
 
 ### Jupyter Notebook Examples <a name="notebook-examples"></a>
 
-We have put together some examples in jupyter notebooks under [/experiments](./experiments/) so that you can start utilizing RefCM right away!
+We have put together some examples in jupyter notebooks under [/vignettes](./experiments/) so that you can start utilizing RefCM right away!
 
 

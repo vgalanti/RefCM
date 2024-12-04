@@ -1,15 +1,12 @@
 import os
 import ot
 import json
-import scipy
 
 import pulp as pl
 import numpy as np
-import scanpy as sc
 
 from tqdm import tqdm
-from typing import Union, List, Callable, Tuple, Dict, TypedDict, TypeAlias
-from hashlib import sha256
+from typing import List, Tuple, TypedDict
 from anndata import AnnData
 from matchings import Matching
 from embeddings import Embedder, HVGEmbedder
