@@ -65,6 +65,4 @@ Provided a ground-truth `.obs` field, the matching's performance can be evaluate
 
 ### Jupyter Notebook Examples <a name="notebook-examples"></a>
 
-We have put together some examples in jupyter notebooks under [/vignettes](./experiments/) so that you can start utilizing RefCM right away!
-
-
+We’ve put together a few example Jupyter notebooks under [/vignettes](./vignettes/) to help you start using RefCM right away. Our starter example, [brain.ipynb](vignettes/brain.ipynb), walks you through applying the method to the Allen Brain Atlas datasets.
