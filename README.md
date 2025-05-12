@@ -10,11 +10,11 @@ RefCM is an automated tool enabling cell-type annotation across different scRNA-
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
-- [About ](#about-)
-- [Installation ](#installation-)
-- [Usage ](#usage-)
-  - [Jupyter Notebook Examples ](#jupyter-notebook-examples-)
-<!-- ## Documentation <a name="documentation"></a> -->
+- [About](#about)
+- [Installation](#installation)
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [Examples ](#examples)
 
 ## About <a name="about"></a>
 
@@ -30,9 +30,20 @@ We recommend creation of a new conda environment with the required dependencies 
   conda activate refcm
 ```
 
-Windows users may need to follow the steps described [here](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows) and restart their IDE to install GLPK, a requirement for the linear programming solver.
+> **Note for Windows users**: Installation of the GLPK solver may require additional steps. Please refer to [this guide](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows) and restart your IDE after setup.
 
-To download the datasets we used, please visit our [google drive link](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link) and our [data setup notebook](./data/setup.ipynb) where we list the original source links and how we processed the data.
+To download the datasets in our study, please visit our [Google Drive link](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link) and accompanying [data setup notebook](./data/setup.ipynb) which includes source links and data preprocessing instructions.
+
+## Requirements <a name="requirements"></a>
+
+The package has been tested on:
+
+* macOS Sequoia (Apple M1 Pro, 32 GB RAM)
+* Windows 11 (Intel i5 4-core CPU, 8 GB RAM)
+
+There are no strict hardware requirements, aside from the ability to load the query and reference datasets into memory. All analyses, except for the large embryogenesis datasets, were reproducible on the 8 GB Windows system. On the M1 Pro, even the largest datasets completed in under 20 minutes.
+
+Installation typically takes under 10 minutes (from cloning the repository to running example scripts), depending on network speed.
 
 
 ## Usage <a name="usage"></a>
@@ -63,6 +74,6 @@ Provided a ground-truth `.obs` field, the matching's performance can be evaluate
 ```
 
 
-### Jupyter Notebook Examples <a name="notebook-examples"></a>
+### Examples <a name="examples"></a>
 
 We’ve put together a few example Jupyter notebooks under [/vignettes](./vignettes/) to help you start using RefCM right away. Our starter example, [brain.ipynb](vignettes/brain.ipynb), walks you through applying the method to the Allen Brain Atlas datasets.
