@@ -23,14 +23,15 @@ The primary purpose of this repository is to enable the reproduction of the resu
 
 ## Installation <a name="installation"></a>
 
-We recommend creation of a new conda environment with the required dependencies using the provided [yaml](./env.yml) file:
+We recommend using [uv](https://docs.astral.sh/uv/). After installation, simply run `uv sync` to install the required virtual environment and compatible python version.
 
+For conda users, we have provided a [yaml file](./env.yml):
 ```shell
-  conda env create -n refcm -f env.yml
-  conda activate refcm
+conda env create -n refcm -f env.yml
+conda activate refcm
 ```
 
-> **Note for Windows users**: Installation of the GLPK solver may require additional steps. Please refer to [this guide](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows) and restart your IDE after setup.
+Additionally, users will need to install GLPK. On MacOS, this can be done via homebrew with `brew install glpk`. Windows users require a few more steps, described in [this guide](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows). Please restart your IDE after setup.
 
 To download the datasets in our study, please visit our [Google Drive link](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link) and accompanying [data setup notebook](./data/setup.ipynb) which includes source links and data preprocessing instructions.
 

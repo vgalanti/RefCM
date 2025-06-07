@@ -1,0 +1,16 @@
+[project]
+name = "refcm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.10.3",
+    "nbformat>=5.10.4",
+    "plotly>=6.1.2",
+    "pot>=0.9.5",
+    "pulp>=3.2.1",
+    "scanpy>=1.11.2",
+    "tqdm>=4.67.1",
+]
