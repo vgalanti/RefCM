@@ -6,29 +6,21 @@ import os
 import json
 import time
 import torch
-import config
 import pandas as pd
 import numpy as np
 import scanpy as sc
 import logging
-import seaborn as sns
 
 import rpy2.robjects as ro
 import plotly.express as px
-import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-
-import rpy2.robjects as ro
 
 
-from typing import List, Dict, Tuple, TypedDict, TypeAlias, NamedTuple
+from typing import List, Dict, Tuple, TypeAlias, NamedTuple
 from anndata import AnnData
 from itertools import product
-from collections import defaultdict
 from scipy.sparse import issparse
 
 from rpy2.robjects import pandas2ri
-from plotly.subplots import make_subplots
 
 
 # benchmark model imports
@@ -233,14 +225,13 @@ class RCM(BenchModel):
         # we are given a manual clustering key
         # to evaluate as a reference mapping algorithm
         if self.q_mclusters is not None:
-
             t_start = time.perf_counter()
             self.model = RefCM(cache_save=False, cache_load=False, **kwargs)
             self.model.setref(self.ref, "ref", self.ref_key)
             self.model.annotate(self.q, "q", q_mclusters)
             t_elapsed = time.perf_counter() - t_start
 
-            log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
+            log.debug(f"[*] {self.rm_id} completed: {t_elapsed / 60:.1f}mins")
             self.q.obs.rename(columns={"refcm_annot": self.rm_id}, inplace=True)
 
         # RefCM run on true clusters
@@ -250,12 +241,11 @@ class RCM(BenchModel):
         self.model.annotate(self.q, "q", q_key)
         t_elapsed = time.perf_counter() - t_start
 
-        log.debug(f"[*] {self.rcm_id} completed: {t_elapsed/60:.1f}mins")
+        log.debug(f"[*] {self.rcm_id} completed: {t_elapsed / 60:.1f}mins")
         self.q.obs.rename(columns={"refcm_annot": self.rcm_id}, inplace=True)
 
 
 class CellTypist(BenchModel):
-
     def __init__(self) -> None:
         self.rm_id = "Celltypist"
         self.rcm_id = "MV-Celltypist"
@@ -293,7 +283,7 @@ class CellTypist(BenchModel):
             max_iter=100,
         )
         t_elapsed = time.perf_counter() - t_start
-        log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
+        log.debug(f"[*] {self.rm_id} completed: {t_elapsed / 60:.1f}mins")
 
         # model prediction
         preds = celltypist.annotate(q[:, gs], model)
@@ -308,7 +298,6 @@ class CellTypist(BenchModel):
 
 
 class SCANVI(BenchModel):
-
     def __init__(self) -> None:
         self.rm_id = "SCANVI"
         self.rcm_id = "MV-SCANVI"
@@ -370,7 +359,7 @@ class SCANVI(BenchModel):
         q.obs[self.rm_id] = scanvi_query.predict()
 
         t_elapsed = time.perf_counter() - t_start
-        log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
+        log.debug(f"[*] {self.rm_id} completed: {t_elapsed / 60:.1f}mins")
 
         # cleanup so datasets remain unchanged between executions
         self.q.X = np.expm1(self.q.X) * q_sums / 1e4
@@ -381,7 +370,6 @@ class SCANVI(BenchModel):
 
 
 class SVM(BenchModel):
-
     def __init__(self) -> None:
         self.rm_id = "SVM"
         self.rcm_id = "MV-SVM"
@@ -417,7 +405,7 @@ class SVM(BenchModel):
         svm.fit(self.ref[:, gs].X, self.ref.obs[self.ref_key])
 
         t_elapsed = time.perf_counter() - t_start
-        log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
+        log.debug(f"[*] {self.rm_id} completed: {t_elapsed / 60:.1f}mins")
 
         # model prediction
         self.q.obs[self.rm_id] = svm.predict(self.q[:, gs].X)
@@ -430,7 +418,6 @@ class SVM(BenchModel):
 
 
 class Seurat(BenchModel):
-
     def __init__(self) -> None:
         self.rm_id = "Seurat"
         self.rcm_id = "MV-Seurat"
@@ -484,13 +471,12 @@ class Seurat(BenchModel):
 
         self.q.obs[self.rm_id] = ro.globalenv["preds"]
         t_elapsed = time.perf_counter() - t_start
-        log.debug(f"[*] {self.rm_id} completed: {t_elapsed/60:.1f}mins")
+        log.debug(f"[*] {self.rm_id} completed: {t_elapsed / 60:.1f}mins")
 
         self._mv()
 
 
 class CIPR(BenchModel):
-
     def __init__(self) -> None:
         self.rm_id = "LD-CIPR"
         self.rcm_id = "CIPR"
@@ -559,7 +545,7 @@ class CIPR(BenchModel):
             t_start = time.perf_counter()
             ro.r(r_code)
             t_elapsed = time.perf_counter() - t_start
-            print(f"{self.rm_id} completed: {t_elapsed/60:.1f}mins")
+            print(f"{self.rm_id} completed: {t_elapsed / 60:.1f}mins")
 
             preds = ro.globalenv["preds"]
             self.q.obs[self.rm_id] = preds
@@ -570,7 +556,7 @@ class CIPR(BenchModel):
         t_start = time.perf_counter()
         ro.r(r_code)
         t_elapsed = time.perf_counter() - t_start
-        print(f"{self.rcm_id} completed: {t_elapsed/60:.1f}mins")
+        print(f"{self.rcm_id} completed: {t_elapsed / 60:.1f}mins")
 
         preds = ro.globalenv["preds"]
         self.q.obs[self.rcm_id] = preds
@@ -871,7 +857,7 @@ def plot_brain_monkey_perf(
 
     if write:
         os.makedirs("fig2", exist_ok=True)
-        fig.write_image(f"fig2/brain_monkey.png", scale=2)
+        fig.write_image("fig2/brain_monkey.png", scale=2)
 
     return fig
 
@@ -923,7 +909,7 @@ def plot_fzfish_perf(
 
     if write:
         os.makedirs("fig2", exist_ok=True)
-        fig.write_image(f"fig2/fzfish.png")
+        fig.write_image("fig2/fzfish.png")
 
     return fig
 
@@ -931,7 +917,6 @@ def plot_fzfish_perf(
 def plot_umap(
     ds_id: str, write: bool = False, width: int = 750, height: int = 750, msize: int = 3
 ):
-
     # load the dataset for the umap
     ds = sc.read_h5ad(f"../data/{ds_id}.h5ad")
 
@@ -1004,7 +989,6 @@ def plot_accuracy_umap(
     height: int = 750,
     msize: int = 3,
 ):
-
     benchmarks = load_benchmarks()
 
     b = benchmarks.get(model)

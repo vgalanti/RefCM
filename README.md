@@ -1,12 +1,15 @@
-[![Python Versions](https://img.shields.io/badge/python-3.11-blue)](https://pypi.org/project/alpaca-py)
+[![PyPI version](https://img.shields.io/pypi/v/refcm.svg?color=blue)](https://pypi.org/project/refcm)
+[![Python versions](https://img.shields.io/pypi/pyversions/refcm.svg)](https://pypi.org/project/refcm/)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 <center> <h1>RefCM: Reference Cluster-Mapping</h1> </center>
 
+RefCM is an automated tool for cell type annotation across single-cell RNA-seq datasets. It leverages optimal transport to align cell-type clusters across tissues, sequencing technologies, and species.
 
-RefCM is an automated tool enabling cell-type annotation across different scRNA-seq datasets. The model bases itself on the geometric properties of optimal transport to map cell-type clusters across tissues, sequencing methods, and species.
+This repository supports reproducing the results from our paper and helps others apply RefCM to their own datasets.
 
-![overview](/vignettes/overview.jpeg)
+![overview](https://github.com/vgalanti/RefCM/blob/main/vignettes/overview.jpeg?raw=true)
+
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -14,7 +17,9 @@ RefCM is an automated tool enabling cell-type annotation across different scRNA-
 - [Installation](#installation)
 - [Requirements](#requirements)
 - [Usage](#usage)
-- [Examples ](#examples)
+- [Examples](#examples)
+- [Citation & Contact](#citation--contact)
+
 
 ## About <a name="about"></a>
 
@@ -23,40 +28,48 @@ The primary purpose of this repository is to enable the reproduction of the resu
 
 ## Installation <a name="installation"></a>
 
-We recommend using [uv](https://docs.astral.sh/uv/). After installation, simply run `uv sync` to install the required virtual environment and compatible python version.
-
-For conda users, we have provided a [yaml file](./env.yml):
+RefCM is available on PyPI. You can install it using pip:
 ```shell
-conda env create -n refcm -f env.yml
-conda activate refcm
+pip install refcm
 ```
 
-Additionally, users will need to install GLPK. On MacOS, this can be done via homebrew with `brew install glpk`. Windows users require a few more steps, described in [this guide](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows). Please restart your IDE after setup.
+If you want to build from source, you can use [uv](https://docs.astral.sh/uv/):
+```shell
+uv pip install -e ".[dev]"
+```
 
-To download the datasets in our study, please visit our [Google Drive link](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link) and accompanying [data setup notebook](./data/setup.ipynb) which includes source links and data preprocessing instructions.
+**Note**: RefCM depends on the [GLPK solver](https://www.gnu.org/software/glpk/).
+
+- On macOS, install via Homebrew with `brew install glpk`.
+- On Windows, follow [this guide](https://stackoverflow.com/questions/17513666/installing-glpk-gnu-linear-programming-kit-on-windows).
+
+After installation, restart your IDE or terminal to ensure the solver is recognized.
+
+To download the datasets used in our study, please visit our [Google Drive folder](https://drive.google.com/drive/folders/1fWWaxBLUdacBT9r-1CymdyRICMPStvBJ?usp=share_link), along with the accompanying [data setup notebook](https://github.com/vgalanti/RefCM/blob/main/data/setup.ipynb), which includes source links and preprocessing instructions.
+
 
 ## Requirements <a name="requirements"></a>
 
 The package has been tested on:
 
-* macOS Sequoia (Apple M1 Pro, 32 GB RAM)
-* Windows 11 (Intel i5 4-core CPU, 8 GB RAM)
+- macOS Sequoia (Apple M1 Pro, 32 GB RAM)
+- Windows 11 (Intel i5 4-core CPU, 8 GB RAM)
 
 There are no strict hardware requirements, aside from the ability to load the query and reference datasets into memory. All analyses, except for the large embryogenesis datasets, were reproducible on the 8 GB Windows system. On the M1 Pro, even the largest datasets completed in under 20 minutes.
 
-Installation typically takes under 10 minutes (from cloning the repository to running example scripts), depending on network speed.
+Installation typically takes under 5 minutes, depending on network speed.
 
 
 ## Usage <a name="usage"></a>
 
-Running RefCM on a given `query: AnnData` and `reference: AnnData` dataset pair, assuming clustering information under their respective `.obs['cluster']` attributes, can be achieved by running the following code and tweaking the remaining hyperparameters. The method expects raw counts to be provided under each dataset's `.X` attribute.
+Running RefCM on a given `query: AnnData` and `reference: AnnData` dataset pair, assuming clustering information under their respective `.obs['cluster']` attributes, can be done as follows. The method expects raw counts to be provided under each dataset's `.X` attribute.
 
 ```python
-    from refcm import RefCM
-    
-    rcm = RefCM()
-    rcm.setref(reference, 'reference', 'cluster')
-    m = rcm.annotate(query, 'query', 'cluster')
+from refcm import RefCM
+
+rcm = RefCM()
+rcm.setref(reference, 'reference', 'cluster')
+m = rcm.annotate(query, 'query', 'cluster')
 ```
 
 The resulting annotations are written out to the `.obs['refcm_annot']` field in the query's `AnnData` object, leaving the remaining fields unchanged.
@@ -64,17 +77,25 @@ The resulting annotations are written out to the `.obs['refcm_annot']` field in 
 For a graphical representation of the resulting matching/cluster-mapping:
 
 ```python
-    m.display_matching_costs()
+m.display_matching_costs()
 ```
 
 Provided a ground-truth `.obs` field, the matching's performance can be evaluated as follows:
 
 ```python
-    m.display_matching_costs(ground_truth_obs_key='ground_truth_key')
-    m.eval(ground_truth_obs_key='ground_truth_key')
+m.display_matching_costs(ground_truth_obs_key='ground_truth_key')
+m.eval(ground_truth_obs_key='ground_truth_key')
 ```
 
 
 ### Examples <a name="examples"></a>
 
-We’ve put together a few example Jupyter notebooks under [/vignettes](./vignettes/) to help you start using RefCM right away. Our starter example, [brain.ipynb](vignettes/brain.ipynb), walks you through applying the method to the Allen Brain Atlas datasets.
+We’ve put together a few example Jupyter notebooks under the [vignettes](https://github.com/vgalanti/RefCM/tree/main/vignettes) folder.
+
+We recommend starting with [brain.ipynb](https://github.com/vgalanti/RefCM/blob/main/vignettes/brain.ipynb), which applies RefCM to the Allen Brain Atlas.
+
+
+## Citation & Contact <a name="citation--contact"></a>
+
+If you use RefCM in your work, please consider citing our paper (link coming soon).  
+Feel free to open an issue or pull request — contributions and feedback are welcome!
