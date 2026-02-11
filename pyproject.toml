@@ -1,0 +1,46 @@
+[project]
+name = "refcm"
+version = "1.0.1"
+description = "RefCM is a computational method that combines optimal transport and integer programming to enhance the annotation of scRNA clusters using established reference datasets."
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Valerio Galanti", email = "vg2551@columbia.edu" },
+    { name = "Lingting Shi", email = "ls3456@columbia.edu" },
+    { name = "Elham Azizi", email = "ea2690@columbia.edu" },
+    { name = "Yining Liu", email = "yl4536@columbia.edu" },
+    { name = "Andrew J. Blumberg", email = "ab4808@columbia.edu" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "pot>=0.9.5",
+    "pulp>=3.2.1",
+    "scipy>=1.10,<1.16",
+    "scanpy>=1.11.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ipykernel>=6.29.5",
+    "nbformat>=5.10.4",
+    "plotly>=5.0.0",
+    "rpy2==3.4.5",
+    "scalex>=1.0.4",
+    "scvi-tools>=1.3.3",
+    "torch>=2.9.0",
+    "celltypist>=1.7.1",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["data*", "vignettes*"]

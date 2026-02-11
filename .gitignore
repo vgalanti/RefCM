@@ -1,0 +1,44 @@
+# data
+/data/
+*.json
+**/*.json
+
+# macOS
+**/.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Python virtual environments
+.venv/
+**/.venv/
+.env/
+env/
+venv/
+
+# Python caches / bytecode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.so
+
+# Common single-cell / data artifacts
+**/*.h5ad
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+*.whl
+*.tar.gz
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE configuration
+.vscode/
+.idea/
+
